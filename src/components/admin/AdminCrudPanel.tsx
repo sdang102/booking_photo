@@ -1,0 +1,72 @@
+'use client';
+/* eslint-disable @next/next/no-img-element, react-hooks/set-state-in-effect */
+
+import { FormEvent, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { ImagePlus, Images, Plus, Trash2, X } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { imageFileToBase64 } from '@/lib/imageBase64';
+
+type Row=Record<string,unknown>&{id?:string};
+type Field={key:string;label:string;kind?:'number'|'textarea'|'checkbox'|'json'|'image';required?:boolean};
+type Config={table:string;fields:Field[];archive?:string;singleton?:boolean;defaults:Record<string,unknown>};
+
+const configs:Record<string,Config>={
+  homepage:{table:'homepage_sections',archive:'is_visible',defaults:{content:{},is_visible:true,display_order:0},fields:[{key:'section_key',label:'Section key',required:true},{key:'title',label:'Tiêu đề'},{key:'subtitle',label:'Tiêu đề phụ'},{key:'image_url',label:'Ảnh hiển thị',kind:'image'},{key:'content',label:'Content JSON',kind:'json'},{key:'is_visible',label:'Hiển thị',kind:'checkbox'},{key:'display_order',label:'Thứ tự',kind:'number'}]},
+  services:{table:'services',archive:'is_active',defaults:{price:0,deposit_amount:0,duration_minutes:120,features:[],is_active:true,is_featured:false,display_order:0},fields:[{key:'name',label:'Tên gói',required:true},{key:'slug',label:'Slug',required:true},{key:'short_description',label:'Mô tả ngắn',kind:'textarea'},{key:'description',label:'Mô tả đầy đủ',kind:'textarea'},{key:'price',label:'Giá',kind:'number',required:true},{key:'duration_minutes',label:'Thời lượng',kind:'number',required:true},{key:'edited_photo_count',label:'Số ảnh chỉnh',kind:'number'},{key:'cover_image',label:'Ảnh gói chụp',kind:'image'},{key:'features',label:'Features JSON',kind:'json'},{key:'terms',label:'Điều khoản',kind:'textarea'},{key:'is_featured',label:'Nổi bật',kind:'checkbox'},{key:'is_active',label:'Hoạt động',kind:'checkbox'},{key:'display_order',label:'Thứ tự',kind:'number'}]},
+  categories:{table:'categories',archive:'is_active',defaults:{is_active:true,display_order:0},fields:[{key:'name',label:'Tên',required:true},{key:'slug',label:'Slug',required:true},{key:'description',label:'Mô tả',kind:'textarea'},{key:'is_active',label:'Hoạt động',kind:'checkbox'},{key:'display_order',label:'Thứ tự',kind:'number'}]},
+  albums:{table:'portfolio_albums',archive:'is_public',defaults:{is_public:true,is_featured:false,display_order:0},fields:[{key:'title',label:'Tên album',required:true},{key:'slug',label:'Slug',required:true},{key:'description',label:'Mô tả',kind:'textarea'},{key:'location_text',label:'Địa điểm'},{key:'shoot_date',label:'Ngày chụp'},{key:'cover_image',label:'Ảnh bìa album',kind:'image'},{key:'is_featured',label:'Nổi bật',kind:'checkbox'},{key:'is_public',label:'Công khai',kind:'checkbox'},{key:'display_order',label:'Thứ tự',kind:'number'}]},
+  portfolio:{table:'portfolio_albums',archive:'is_public',defaults:{is_public:true,is_featured:false,display_order:0},fields:[{key:'title',label:'Tên album',required:true},{key:'slug',label:'Slug',required:true},{key:'description',label:'Mô tả',kind:'textarea'},{key:'location_text',label:'Địa điểm'},{key:'cover_image',label:'Ảnh bìa portfolio',kind:'image'},{key:'is_featured',label:'Nổi bật',kind:'checkbox'},{key:'is_public',label:'Công khai',kind:'checkbox'},{key:'display_order',label:'Thứ tự',kind:'number'}]},
+  locations:{table:'locations',archive:'is_active',defaults:{travel_fee:0,is_active:true,display_order:0},fields:[{key:'name',label:'Tên',required:true},{key:'area',label:'Khu vực'},{key:'address',label:'Địa chỉ'},{key:'description',label:'Mô tả',kind:'textarea'},{key:'cover_image',label:'Ảnh địa điểm',kind:'image'},{key:'travel_fee',label:'Phụ phí',kind:'number'},{key:'is_active',label:'Hoạt động',kind:'checkbox'},{key:'display_order',label:'Thứ tự',kind:'number'}]},
+  faq:{table:'faqs',archive:'is_visible',defaults:{is_visible:true,display_order:0},fields:[{key:'question',label:'Câu hỏi',required:true},{key:'answer',label:'Câu trả lời',kind:'textarea',required:true},{key:'is_visible',label:'Hiển thị',kind:'checkbox'},{key:'display_order',label:'Thứ tự',kind:'number'}]},
+  settings:{table:'site_settings',singleton:true,defaults:{website_name:'CHON Photo Sai Gon',photographer_name:'',default_deposit:0},fields:[{key:'website_name',label:'Tên website',required:true},{key:'photographer_name',label:'Tên photographer',required:true},{key:'logo_url',label:'Logo',kind:'image'},{key:'favicon_url',label:'Favicon',kind:'image'},{key:'og_image_url',label:'Ảnh chia sẻ mạng xã hội',kind:'image'},{key:'phone',label:'Điện thoại'},{key:'email',label:'Email'},{key:'facebook_url',label:'Facebook'},{key:'instagram_url',label:'Instagram'},{key:'tiktok_url',label:'TikTok'},{key:'booking_notice',label:'Lưu ý booking',kind:'textarea'},{key:'cancellation_policy',label:'Chính sách hủy',kind:'textarea'},{key:'reschedule_policy',label:'Chính sách đổi lịch',kind:'textarea'},{key:'seo_title',label:'SEO title'},{key:'seo_description',label:'SEO description',kind:'textarea'}]},
+};
+
+export default function AdminCrudPanel({section}:{section:string}){
+  const config=configs[section];
+  const[rows,setRows]=useState<Row[]>([]);const[edit,setEdit]=useState<Row|null>(null);const[msg,setMsg]=useState('');const[deletingId,setDeletingId]=useState('');
+  const load=useCallback(async()=>{if(!config)return;const{data,error}=await createClient().from(config.table).select('*').order('display_order',{ascending:true});if(error)setMsg(error.message);else setRows((data??[])as Row[])},[config]);
+  useEffect(()=>{void load()},[load]);
+  if(!config)return null;
+
+  const save=async(event:FormEvent)=>{
+    event.preventDefault();if(!edit)return;setMsg('');
+    const payload={...edit};delete payload.id;
+    for(const field of config.fields){
+      if(field.kind==='json'&&typeof payload[field.key]==='string'){
+        try{payload[field.key]=JSON.parse(payload[field.key] as string)}catch{return setMsg(`${field.label}: JSON không hợp lệ`)}
+      }
+    }
+    const query=edit.id?createClient().from(config.table).update(payload).eq('id',edit.id):createClient().from(config.table).insert(payload);
+    const{error}=await query;
+    if(error)setMsg(error.message);else{setEdit(null);await load()}
+  };
+  const archive=async(row:Row)=>{if(!config.archive||!row.id)return;const hidden=row[config.archive]===false;const action=hidden?'hiện lại':'ẩn/ngừng sử dụng';if(!confirm(`Bạn chắc chắn muốn ${action} “${rowLabel(row)}”?`))return;setMsg('');const{error}=await createClient().from(config.table).update({[config.archive]:hidden}).eq('id',row.id);if(error)setMsg(friendlyDatabaseError(error));else{setMsg(hidden?'Đã hiện lại mục này.':'Đã ẩn mục này.');await load()}};
+  const remove=async(row:Row)=>{if(!row.id||config.singleton)return;const label=rowLabel(row);if(!confirm(`Xóa vĩnh viễn “${label}”?\n\nThao tác này không thể hoàn tác. Nếu mục đang được booking hoặc nội dung khác sử dụng, hệ thống sẽ từ chối xóa.`))return;setMsg('');setDeletingId(row.id);const{error}=await createClient().from(config.table).delete().eq('id',row.id);setDeletingId('');if(error)setMsg(friendlyDatabaseError(error));else{setRows(current=>current.filter(item=>item.id!==row.id));setMsg(`Đã xóa “${label}”.`)}};
+  const openNew=()=>setEdit({id:'',...config.defaults});
+
+  return <div>
+    <div className="flex justify-end"><button onClick={()=>config.singleton&&rows[0]?setEdit({...rows[0]}):openNew()} className="sky-button flex min-h-11 items-center gap-2 rounded-xl px-4"><Plus className="h-4 w-4"/>{config.singleton&&rows.length?'Sửa cài đặt':'Thêm mới'}</button></div>
+    {msg&&<p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{msg}</p>}
+    <div className="mt-5 space-y-3">{rows.map(row=>{const hidden=Boolean(config.archive&&row[config.archive]===false);const managesImages=['albums','portfolio'].includes(section)&&row.id;return <article key={row.id} className={`flex items-center justify-between gap-4 rounded-2xl border bg-white p-4 ${hidden?'border-slate-200 opacity-70':'border-sky-200'}`}><div className="min-w-0"><strong className="block truncate">{rowLabel(row)}</strong><span className="text-xs text-slate-500">{String(row.slug??row.subtitle??'')}{hidden?' · Đang ẩn':''}</span></div><div className="flex flex-wrap justify-end gap-2">{managesImages&&<Link href={`/admin/albums/${row.id}`} className="flex min-h-10 items-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-3 text-xs font-bold text-sky-800"><Images className="h-3.5 w-3.5"/>Quản lý ảnh</Link>}<button onClick={()=>setEdit({...row})} className="min-h-10 rounded-xl border border-sky-200 px-3 text-xs font-bold">Sửa</button>{config.archive&&<button onClick={()=>archive(row)} className={`min-h-10 rounded-xl px-3 text-xs font-bold ${hidden?'bg-emerald-50 text-emerald-700':'bg-amber-50 text-amber-700'}`}>{hidden?'Hiện':'Ẩn'}</button>}{!config.singleton&&<button disabled={deletingId===row.id} onClick={()=>remove(row)} className="flex min-h-10 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-xs font-bold text-rose-700 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5"/>{deletingId===row.id?'Đang xóa…':'Xóa'}</button>}</div></article>})}</div>
+    {edit&&<div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950/50 p-4 backdrop-blur-sm"><form onSubmit={save} className="mx-auto my-6 max-w-2xl rounded-3xl bg-white p-6 shadow-2xl"><div className="flex justify-between gap-4"><div><h2 className="text-2xl font-black">{edit.id?'Chỉnh sửa':'Thêm mới'}</h2><p className="mt-1 text-xs text-slate-500">Ảnh được nén và lưu Base64 trực tiếp vào database.</p></div><button type="button" onClick={()=>setEdit(null)} className="grid h-10 w-10 place-items-center rounded-xl hover:bg-slate-100"><X/></button></div><div className="mt-6 grid gap-4 sm:grid-cols-2">{config.fields.map(field=><FieldEditor key={field.key} field={field} value={edit[field.key]} onChange={value=>setEdit(current=>current?{...current,[field.key]:value}:current)} onError={setMsg}/>)}</div><button className="sky-button mt-6 min-h-12 w-full rounded-xl">Lưu vào Supabase</button></form></div>}
+  </div>;
+}
+
+function rowLabel(row:Row){return String(row.name??row.title??row.question??row.section_key??row.website_name??'Mục này')}
+function friendlyDatabaseError(error:{code?:string;message:string}){
+  if(error.code==='23503')return 'Không thể xóa vì mục này đang được booking hoặc dữ liệu khác sử dụng. Hãy dùng chức năng Ẩn.';
+  if(error.code==='42501')return 'Tài khoản hiện tại không có quyền xóa mục này.';
+  return `Không thể thực hiện thao tác: ${error.message}`;
+}
+
+function FieldEditor({field,value,onChange,onError}:{field:Field;value:unknown;onChange:(value:unknown)=>void;onError:(message:string)=>void}){
+  if(field.kind==='image')return <ImagePicker label={field.label} value={String(value??'')} onChange={onChange} onError={onError}/>;
+  return <label className={field.kind==='textarea'||field.kind==='json'?'sm:col-span-2':''}><span className="mb-1 block text-xs font-bold">{field.label}</span>{field.kind==='checkbox'?<input type="checkbox" checked={Boolean(value)} onChange={event=>onChange(event.target.checked)} className="h-5 w-5 accent-sky-600"/>:field.kind==='textarea'||field.kind==='json'?<textarea required={field.required} className="booking-input min-h-28" value={field.kind==='json'&&typeof value!=='string'?JSON.stringify(value??{},null,2):String(value??'')} onChange={event=>onChange(event.target.value)}/>:<input required={field.required} type={field.kind==='number'?'number':'text'} className="booking-input" value={String(value??'')} onChange={event=>onChange(field.kind==='number'?Number(event.target.value):event.target.value)}/>}</label>;
+}
+
+function ImagePicker({label,value,onChange,onError}:{label:string;value:string;onChange:(value:string)=>void;onError:(message:string)=>void}){
+  const[busy,setBusy]=useState(false);
+  const select=async(file?:File)=>{if(!file)return;setBusy(true);onError('');try{onChange(await imageFileToBase64(file))}catch(error){onError(error instanceof Error?error.message:'Không thể xử lý ảnh.')}finally{setBusy(false)}};
+  return <div className="sm:col-span-2"><span className="mb-2 block text-xs font-bold">{label}</span>{value&&<div className="relative mb-3 overflow-hidden rounded-2xl border border-sky-200 bg-slate-50"><img src={value} alt={`Xem trước ${label}`} className="h-52 w-full object-contain"/><button type="button" onClick={()=>onChange('')} className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-xl bg-white/90 text-rose-700 shadow"><Trash2 className="h-4 w-4"/></button></div>}<label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-sky-300 bg-sky-50 px-4 text-sm font-bold text-sky-800 hover:bg-sky-100"><ImagePlus className="h-4 w-4"/>{busy?'Đang xử lý ảnh…':value?'Chọn ảnh khác từ máy':'Chọn ảnh từ máy'}<input type="file" accept="image/*" disabled={busy} onChange={event=>{void select(event.target.files?.[0]);event.target.value=''}} className="sr-only"/></label></div>;
+}
