@@ -1,34 +1,60 @@
-﻿'use client';
+'use client';
 
+import Image from 'next/image';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
-import ReviewCard, { Stars } from './ReviewCard';
+import { ArrowLeft, ArrowRight, Quote } from 'lucide-react';
 import { getReviews, reviewSummary } from '@/lib/services/reviewService';
 import type { ExperienceReview } from '@/types';
 
+const luxuryReviewImages = [
+  'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=1200&q=86',
+  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1200&q=86',
+  'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=1200&q=86',
+];
+
 export default function ReviewsSection() {
   const [reviews, setReviews] = useState<ExperienceReview[]>([]);
-  const [showAll, setShowAll] = useState(false);
+  const [active, setActive] = useState(0);
+
   useEffect(() => {
-    let active = true;
-    const load = () => getReviews({ publicOnly: true, featuredFirst: true }).then((items) => { if (active) setReviews(items); });
+    let mounted = true;
+    const load = () => getReviews({ publicOnly: true, featuredFirst: true }).then((items) => { if (mounted) setReviews(items); });
     void load();
     window.addEventListener('review-created', load);
-    return () => { active = false; window.removeEventListener('review-created', load); };
+    return () => { mounted = false; window.removeEventListener('review-created', load); };
   }, []);
+
+  if (!reviews.length) return null;
+  const item = reviews[active % reviews.length];
   const summary = reviewSummary(reviews);
-  const visibleReviews = showAll ? reviews : reviews.slice(0, 3);
+  const image = luxuryReviewImages[active % luxuryReviewImages.length];
+  const quote = item.comment.length > 220 ? `${item.comment.slice(0, 217).trimEnd()}…` : item.comment;
+  const move = (direction: number) => setActive((current) => (current + direction + reviews.length) % reviews.length);
+
   return (
-    <section id="reviews" className="scroll-reveal bg-white/50 py-20 sm:py-28">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
-          <div className="max-w-3xl"><span className="section-kicker">Trải nghiệm thật</span><h2 className="section-title">Khách Hàng Nói Gì Về Trải Nghiệm Chụp?</h2><p className="section-copy">Những chia sẻ thật từ những khách hàng đã đồng hành cùng tôi trong các buổi chụp.</p></div>
-          <div className="rounded-2xl border border-sky-200 bg-white px-6 py-4"><div className="flex items-center gap-3"><strong className="text-3xl font-black text-slate-900">{summary.averageRating.toFixed(1)}</strong><div><Stars rating={Math.round(summary.averageRating)} /><p className="mt-1 text-[11px] text-slate-500">Dựa trên {summary.totalReviews} đánh giá đã chụp</p></div></div></div>
+    <section id="reviews" className="review-story" data-cinematic-section>
+      <div className="review-story__media" data-section-depth="0.25">
+        <Image key={image} src={image} alt="Khoảnh khắc trong buổi chụp" fill sizes="(max-width: 899px) 100vw, 45vw" className="object-cover" />
+      </div>
+      <div className="review-story__copy" data-reveal data-reveal-type="mask">
+        <div className="review-story__meta">
+          <span>Cảm nhận từ khách hàng</span>
+          <span>{summary.averageRating.toFixed(1)} / 5 · {summary.totalReviews} câu chuyện thật</span>
         </div>
-        <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">{visibleReviews.map((review) => <ReviewCard key={review.id} review={review} />)}</div>
-        {reviews.length > 3 && <div className="mt-9 text-center"><button type="button" onClick={() => setShowAll((value) => !value)} aria-expanded={showAll} className="inline-flex items-center gap-2 rounded-xl border border-sky-300 bg-white px-5 py-3 text-sm font-bold text-sky-700 transition-all hover:bg-sky-50">{showAll ? 'Thu Gọn Đánh Giá' : `Xem Thêm ${reviews.length - 3} Đánh Giá`} <ChevronDown className={`h-4 w-4 transition-transform ${showAll ? 'rotate-180' : ''}`} /></button></div>}
+        <Quote aria-hidden="true" />
+        <blockquote key={item.id}>“{quote}”</blockquote>
+        <div className="review-story__person">
+          <p>{item.customer_name}</p>
+          <span>Luxury Signature Portrait · {new Date(item.created_at).getFullYear()}</span>
+        </div>
+        <div className="review-story__controls">
+          <button onClick={() => move(-1)} aria-label="Cảm nhận trước"><ArrowLeft /></button>
+          <span>{String(active + 1).padStart(2, '0')} / {String(reviews.length).padStart(2, '0')}</span>
+          <button onClick={() => move(1)} aria-label="Cảm nhận tiếp theo"><ArrowRight /></button>
+          <Link href="/reviews">Xem tất cả cảm nhận</Link>
+        </div>
       </div>
     </section>
   );
 }
-

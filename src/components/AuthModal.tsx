@@ -118,12 +118,12 @@ export default function AuthModal({
       role="presentation"
     >
       <div
-        className="auth-dialog relative my-auto w-full max-w-md overflow-hidden rounded-3xl border border-sky-200 bg-white shadow-2xl"
+        className="auth-dialog relative my-auto w-full max-w-md overflow-hidden rounded-3xl border border-sky-200 bg-elevated shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-modal-title"
       >
-        <div className="flex items-center justify-between border-b border-sky-200 bg-white/90 p-6">
+        <div className="flex items-center justify-between border-b border-sky-200 bg-elevated/90 p-6">
           <div>
             <span className="block text-[11px] font-bold uppercase tracking-[0.18em] text-sky-500">
               Xác thực tài khoản
@@ -146,14 +146,14 @@ export default function AuthModal({
           <button
             type="button"
             onClick={() => selectMode('login')}
-            className={`cursor-pointer rounded-lg py-2.5 transition-all ${mode === 'login' ? 'bg-sky-600 text-white shadow-md' : 'text-slate-600 hover:text-sky-700'}`}
+            className={`cursor-pointer rounded-lg py-2.5 transition-all ${mode === 'login' ? 'bg-brand text-brand-contrast shadow-md' : 'text-slate-600 hover:text-sky-700'}`}
           >
             Đăng Nhập
           </button>
           <button
             type="button"
             onClick={() => selectMode('register')}
-            className={`cursor-pointer rounded-lg py-2.5 transition-all ${mode === 'register' ? 'bg-sky-600 text-white shadow-md' : 'text-slate-600 hover:text-sky-700'}`}
+            className={`cursor-pointer rounded-lg py-2.5 transition-all ${mode === 'register' ? 'bg-brand text-brand-contrast shadow-md' : 'text-slate-600 hover:text-sky-700'}`}
           >
             Đăng Ký
           </button>

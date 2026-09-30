@@ -50,10 +50,10 @@ export default function MyBookingsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/60 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-[#ffffff] border border-sky-200 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[85vh] flex flex-col">
+      <div className="relative w-full max-w-2xl bg-elevated border border-sky-200 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[85vh] flex flex-col">
         
         {/* Header */}
-        <div className="p-5 border-b border-sky-200 flex items-center justify-between bg-[#fffaf4] sticky top-0 z-10">
+        <div className="p-5 border-b border-sky-200 flex items-center justify-between bg-background sticky top-0 z-10">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-sky-600/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
               <Clock className="w-5 h-5" />
@@ -82,7 +82,7 @@ export default function MyBookingsModal({
                 onClose();
                 onOpenAuth();
               }}
-              className="px-2.5 py-1 rounded bg-sky-600 text-white font-bold hover:bg-sky-500 cursor-pointer shadow-sm"
+                className="px-2.5 py-1 rounded bg-brand text-brand-contrast font-bold hover:bg-brand-hover cursor-pointer shadow-sm"
             >
               Đăng Nhập
             </button>
@@ -98,7 +98,7 @@ export default function MyBookingsModal({
               </div>
               <h4 className="text-base font-bold text-slate-900">Bạn chưa có lịch chụp nào</h4>
               <p className="text-xs text-slate-600 mt-1 max-w-sm mx-auto">
-                Hãy lựa chọn concept yêu thích và đặt lịch ngay để giữ chỗ khung giờ đẹp nhất cùng tôi nhé!
+                Hãy đặt lịch Luxury Portrait để giữ khung giờ phù hợp và bắt đầu chuẩn bị moodboard dành riêng cho bạn.
               </p>
               <button
                 onClick={() => {
@@ -116,7 +116,7 @@ export default function MyBookingsModal({
               return (
                 <div
                   key={booking.id}
-                  className="p-4 rounded-xl bg-white/70 border border-sky-200 hover:border-sky-600/40 transition-all space-y-3"
+                  className="p-4 rounded-xl bg-elevated/70 border border-sky-200 hover:border-sky-600/40 transition-all space-y-3"
                 >
                   <div className="flex items-start justify-between">
                     <div>
@@ -153,7 +153,7 @@ export default function MyBookingsModal({
                   </div>
 
                   {booking.notes && (
-                    <div className="p-2 rounded bg-white/50 text-[11px] text-slate-600 border border-sky-950/30">
+                    <div className="p-2 rounded bg-elevated/50 text-[11px] text-slate-600 border border-sky-950/30">
                       Ghi chú: {booking.notes}
                     </div>
                   )}
@@ -171,7 +171,7 @@ export default function MyBookingsModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-sky-200 bg-[#fffaf4] flex items-center justify-between">
+        <div className="p-4 border-t border-sky-200 bg-background flex items-center justify-between">
           <span className="text-xs text-slate-600">
             Tổng cộng: <strong className="text-slate-900">{userBookings.length} lịch hẹn</strong>
           </span>

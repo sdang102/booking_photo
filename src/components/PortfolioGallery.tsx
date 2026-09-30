@@ -1,64 +1,162 @@
-﻿'use client';
+'use client';
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { ArrowUpRight, ChevronDown, MapPin } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowDownRight, ArrowUpRight, MapPin } from 'lucide-react';
+import gsap from 'gsap';
 import { getPortfolioAlbums } from '@/lib/services/contentService';
+import { PORTFOLIO_ALBUMS } from '@/lib/data/mockData';
 import type { PortfolioAlbum, PortfolioCategory } from '@/types';
 
 const FILTERS: Array<{ id: 'all' | PortfolioCategory; label: string }> = [
-  { id: 'all', label: 'Tất Cả' }, { id: 'couple', label: 'Couple' },
-  { id: 'portrait', label: 'Chân Dung' }, { id: 'pre-wedding', label: 'Pre-Wedding' },
-  { id: 'family', label: 'Gia Đình' }, { id: 'event', label: 'Sự Kiện' }, { id: 'concept', label: 'Concept' },
+  { id: 'all', label: 'Tất cả' }, { id: 'couple', label: 'Couple' },
+  { id: 'portrait', label: 'Chân dung' }, { id: 'pre-wedding', label: 'Pre-wedding' },
+  { id: 'family', label: 'Gia đình' }, { id: 'event', label: 'Sự kiện' }, { id: 'concept', label: 'Concept' },
 ];
 
+interface SharedTransition {
+  album: PortfolioAlbum;
+  rect: { top: number; left: number; width: number; height: number };
+}
+
 export default function PortfolioGallery() {
+  const router = useRouter();
   const [filter, setFilter] = useState<'all' | PortfolioCategory>('all');
-  const [showAll, setShowAll] = useState(false);
-  const [allAlbums, setAllAlbums] = useState<PortfolioAlbum[]>([]);
-  useEffect(() => { getPortfolioAlbums(true).then(setAllAlbums); }, []);
-  const albums = filter === 'all' ? allAlbums : allAlbums.filter((album) => album.category === filter);
-  const visibleAlbums = showAll ? albums : albums.slice(0, 3);
+  const [albums, setAlbums] = useState<PortfolioAlbum[]>(PORTFOLIO_ALBUMS);
+  const [transition, setTransition] = useState<SharedTransition | null>(null);
+  const transitionMedia = useRef<HTMLDivElement>(null);
+  const transitionShade = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    getPortfolioAlbums(true).then((items) => { if (items.length) setAlbums(items); });
+  }, []);
+
+  const filtered = filter === 'all' ? albums : albums.filter((album) => album.category === filter);
+  const roomAlbums = [...albums, ...PORTFOLIO_ALBUMS].filter((album, index, list) => list.findIndex((item) => item.slug === album.slug) === index).slice(0, 6);
+
+  useLayoutEffect(() => {
+    if (!transition || !transitionMedia.current || !transitionShade.current) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      router.push(`/portfolio/${transition.album.slug}`);
+      return;
+    }
+    document.body.classList.add('shared-transition-active');
+    const timeline = gsap.timeline({ onComplete: () => router.push(`/portfolio/${transition.album.slug}`) });
+    timeline
+      .fromTo(transitionShade.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.28, ease: 'power2.out' }, 0)
+      .fromTo(transitionMedia.current, {
+        top: transition.rect.top, left: transition.rect.left,
+        width: transition.rect.width, height: transition.rect.height, borderRadius: 2,
+      }, {
+        top: 0, left: 0, width: window.innerWidth, height: window.innerHeight,
+        borderRadius: 0, duration: 0.82, ease: 'power4.inOut',
+      }, 0)
+      .fromTo(transitionMedia.current.querySelector('img'), { scale: 1 }, { scale: 1.04, duration: 0.85, ease: 'power2.inOut' }, 0);
+    return () => { timeline.kill(); document.body.classList.remove('shared-transition-active'); };
+  }, [router, transition]);
+
+  const beginTransition = (event: React.MouseEvent<HTMLAnchorElement>, album: PortfolioAlbum) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    const media = event.currentTarget.querySelector<HTMLElement>('[data-shared-media]');
+    if (!media) return;
+    event.preventDefault();
+    const rect = media.getBoundingClientRect();
+    setTransition({ album, rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height } });
+  };
 
   return (
-    <section id="portfolio" className="scroll-reveal bg-white/50 py-20 sm:py-28">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="max-w-2xl">
-          <span className="text-xs font-bold uppercase tracking-[0.24em] text-sky-600">Portfolio</span>
-          <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-900 sm:text-5xl">Những Khoảnh Khắc Tôi Đã Ghi Lại</h2>
-          <p className="mt-4 text-slate-600">Khám phá những bộ ảnh và câu chuyện tôi đã thực hiện.</p>
+    <section id="portfolio" className="portfolio-experience">
+      <div className="floating-room" data-photo-room>
+        <div className="floating-room__stage" data-photo-room-stage>
+          <div className="floating-room__intro">
+            <span>Portfolio chọn lọc</span>
+            <h2>Đi giữa những<br /><em>khung hình.</em></h2>
+            <p>Chọn một khung hình để mở trọn album.</p>
+          </div>
+          {roomAlbums.map((album, index) => (
+            <Link
+              href={`/portfolio/${album.slug}`}
+              key={album.id}
+              className={`floating-frame floating-frame--${index + 1}`}
+              data-room-frame
+              onClick={(event) => beginTransition(event, album)}
+              aria-label={`Mở album ${album.title}`}
+            >
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <div data-shared-media><Image src={album.cover_url} alt={album.title} fill sizes="(max-width: 899px) 58vw, 30vw" className="object-cover" /></div>
+              <strong>{album.title}</strong>
+              <small>Mở album <ArrowUpRight /></small>
+            </Link>
+          ))}
         </div>
+      </div>
 
-        <div className="mt-8 flex gap-2 overflow-x-auto pb-2" aria-label="Lọc portfolio">
+      <div className="portfolio-indexed" data-cinematic-section>
+        <header className="portfolio-indexed__header" data-reveal data-reveal-type="split">
+          <div>
+            <span className="section-kicker">Portfolio · Bộ ảnh đã thực hiện</span>
+            <h2 className="section-title">Những câu chuyện<br />đã thành ký ức.</h2>
+          </div>
+          <div>
+            <p>Không phải một bộ sưu tập. Đây là những khoảnh khắc còn hơi thở, ánh nhìn và nhịp tim của người trong ảnh.</p>
+            <ArrowDownRight />
+          </div>
+        </header>
+
+        <div className="portfolio-filters" aria-label="Lọc portfolio">
           {FILTERS.map((item) => (
-            <button key={item.id} onClick={() => { setFilter(item.id); setShowAll(false); }} className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-all ${filter === item.id ? 'bg-sky-600 text-white shadow-lg' : 'border border-sky-200 bg-white text-slate-600 hover:border-sky-400'}`}>
-              {item.label}
+            <button type="button" key={item.id} onClick={() => setFilter(item.id)} className={filter === item.id ? 'is-active' : ''} aria-pressed={filter === item.id}>
+              {item.label}<span>{String((item.id === 'all' ? albums : albums.filter((album) => album.category === item.id)).length).padStart(2, '0')}</span>
             </button>
           ))}
         </div>
 
-        <div className="mt-8 columns-1 gap-5 sm:columns-2 lg:columns-3">
-          {visibleAlbums.map((album, index) => (
-            <Link key={album.id} href={`/portfolio/${album.slug}`} className="portfolio-tile group relative mb-5 block break-inside-avoid overflow-hidden rounded-2xl bg-slate-100">
-              <div className={`relative ${index % 3 === 1 ? 'aspect-[4/5]' : 'aspect-[4/3]'}`}>
-                <Image src={album.cover_url} alt={album.title} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" className="object-cover transition-transform duration-1000 ease-out group-hover:scale-105" />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/5 to-transparent opacity-80 transition-opacity group-hover:opacity-100" />
-                <div className="absolute inset-x-0 bottom-0 p-5 text-white">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-200">{FILTERS.find((item) => item.id === album.category)?.label}</span>
-                  <div className="mt-1 flex items-end justify-between gap-3">
-                    <div><h3 className="text-lg font-bold text-white">{album.title}</h3>{album.location && <p className="mt-1 flex items-center gap-1 text-xs text-white/75"><MapPin className="h-3 w-3" />{album.location}</p>}</div>
-                    <ArrowUpRight className="h-5 w-5 translate-y-2 opacity-0 transition-all group-hover:translate-y-0 group-hover:opacity-100" />
-                  </div>
+        <div className="editorial-gallery">
+          {filtered.map((album, index) => (
+            <Link key={album.id} href={`/portfolio/${album.slug}`} onClick={(event) => beginTransition(event, album)} className={`portfolio-tile portfolio-tile--${index % 6}`} aria-label={`Mở album ${album.title}`}>
+              <article className="portfolio-card">
+                <div className="portfolio-card-media" data-shared-media>
+                  <Image src={album.cover_url} alt={album.title} fill sizes="(max-width: 699px) 92vw, (max-width: 1100px) 55vw, 42vw" className="object-cover" />
                 </div>
-              </div>
+                <div className="portfolio-card-copy">
+                  <span>{String(index + 1).padStart(2, '0')} / {album.category.replace('-', ' ')}</span>
+                  <div><h3>{album.title}</h3><span className="portfolio-card-cta">Mở album <ArrowUpRight /></span></div>
+                  {album.location && <p><MapPin />{album.location}</p>}
+                </div>
+              </article>
             </Link>
           ))}
         </div>
-
-        {albums.length > 3 && <div className="mt-8 text-center"><button type="button" onClick={() => setShowAll((value) => !value)} aria-expanded={showAll} className="inline-flex items-center gap-2 rounded-xl border border-sky-300 bg-white px-5 py-3 text-sm font-bold text-sky-700 transition-all hover:bg-sky-50">{showAll ? 'Thu Gọn Portfolio' : `Xem Thêm ${albums.length - 3} Bộ Ảnh`} <ChevronDown className={`h-4 w-4 transition-transform ${showAll ? 'rotate-180' : ''}`} /></button></div>}
       </div>
+
+      <div className="contact-sheet" data-contact-sheet>
+        <div className="contact-sheet__heading">
+          <span>Contact sheet · Vol. 01</span>
+          <h2>Những khoảng lặng<br />giữa hai lần bấm máy.</h2>
+          <p>Di chuyển qua những thước phim. Chạm vào một khung để mở trọn câu chuyện.</p>
+        </div>
+        <div className="contact-sheet__rail" data-contact-rail>
+          {[...albums, ...albums].slice(0, 10).map((album, index) => (
+            <Link key={`${album.id}-${index}`} href={`/portfolio/${album.slug}`} onClick={(event) => beginTransition(event, album)} className="contact-frame" aria-label={`Mở album ${album.title}`}>
+              <small>{String(index + 1).padStart(2, '0')}A</small>
+              <div data-shared-media><Image src={album.cover_url} alt={album.title} fill sizes="(max-width: 700px) 62vw, 25vw" className="object-cover" /></div>
+              <span>{album.title}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {transition && (
+        <div className="shared-transition" aria-hidden="true">
+          <div ref={transitionShade} className="shared-transition-shade" />
+          <div ref={transitionMedia} className="shared-transition-media">
+            <Image src={transition.album.cover_url} alt="" fill preload sizes="100vw" className="object-cover" />
+            <div className="shared-transition-title">{transition.album.title}</div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
-

@@ -1,16 +1,75 @@
+'use client';
+
 import Image from 'next/image';
-import { ArrowRight, Check, Images } from 'lucide-react';
-import type { HomepageSection } from '@/types';
+import { ArrowDownRight, CalendarDays } from 'lucide-react';
 
-const fallbackImage = 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1000&q=84';
+const fallbackImage = 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1800&q=90';
+const luxuryLayers = [
+  'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=900&q=84',
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1100&q=84',
+  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1000&q=84',
+];
 
-export default function Hero({ section }: { section?: HomepageSection }) {
-  const content = section?.content ?? {};
-  const badge = String(content.badge ?? section?.subtitle ?? 'Nhiếp ảnh cá nhân · S. Đặng');
-  const title = section?.title ?? 'Bắt trọn khoảnh khắc, định hình thần thái độc bản.';
-  const description = String(content.description ?? 'Tôi trực tiếp đồng hành từ ý tưởng, ánh sáng, hướng dẫn tạo dáng đến hậu kỳ để mỗi bộ ảnh thật sự mang câu chuyện của riêng bạn.');
-  const highlightValue = content.highlights ?? content.trust;
-  const highlights = Array.isArray(highlightValue) ? highlightValue.map(String) : ['Giá minh bạch', 'Xem lịch trống trực tiếp', 'Đặt lịch online'];
+export default function Hero({ onBook }: { onBook: () => void }) {
+  const heroImage = fallbackImage;
+  const intro = 'Một concept. Một dấu ấn không thể trộn lẫn.';
+  const description = 'Luxury Portrait dành cho người muốn nhìn thấy phiên bản tự tin, sang trọng và chân thật nhất của chính mình.';
 
-  return <section className="scroll-reveal relative overflow-hidden pb-20 pt-12 sm:pb-28 sm:pt-16"><div className="absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-sky-300/20 blur-3xl"/><div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-12 lg:px-8"><div className="text-center lg:col-span-7 lg:text-left"><span className="inline-flex rounded-full border border-sky-200 bg-white/80 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-sky-700">{badge}</span><h1 className="mt-6 text-4xl font-black leading-[1.08] tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">{title}</h1><p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-600 lg:mx-0">{description}</p><div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start"><a href="#services" className="sky-button inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm">{String(content.primary_label ?? 'Xem Gói Chụp')} <ArrowRight className="h-4 w-4"/></a><a href="#portfolio" className="inline-flex items-center justify-center gap-2 rounded-xl border border-sky-300 bg-white px-6 py-3.5 text-sm font-bold text-sky-700"><Images className="h-4 w-4"/>{String(content.secondary_label ?? 'Xem Portfolio')}</a></div><div className="mt-9 flex flex-wrap justify-center gap-x-6 gap-y-3 text-xs font-semibold text-slate-600 lg:justify-start">{highlights.map((item)=><span key={item} className="flex items-center gap-1.5"><Check className="h-4 w-4 rounded-full bg-sky-100 p-0.5 text-sky-700"/>{item}</span>)}</div></div><div className="relative lg:col-span-5"><div className="relative mx-auto aspect-[4/5] max-w-md overflow-hidden rounded-[2rem] border border-sky-200 shadow-2xl"><Image src={section?.image_url || fallbackImage} alt={String(content.image_alt ?? title)} fill priority sizes="(max-width: 1024px) 100vw, 42vw" className="object-cover"/><div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/80 to-transparent p-6 pt-20 text-white"><p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200">{String(content.image_kicker ?? 'Editorial story')}</p><h2 className="mt-1 text-xl font-bold text-white">{String(content.image_caption ?? 'Cinematic & Moody Fine-Art')}</h2></div></div></div></div></section>;
+  return (
+    <section className="memory-hero" data-hero-scene aria-label="Chọn Photo Sài Gòn">
+      <div className="memory-hero__pin" data-hero-pin>
+        <div className="memory-hero__stage" data-camera-stage>
+          <div className="memory-hero__backdrop" data-depth-level="0.2">
+            <Image src={heroImage} alt="" fill sizes="100vw" className="object-cover" />
+          </div>
+          <div className="memory-hero__shade" aria-hidden="true" />
+
+          <p className="memory-hero__eyebrow" data-depth-level="0.6">
+            Luxury portrait photography <span /> Sài Gòn
+          </p>
+
+          <div className="memory-hero__type" data-hero-copy>
+            <span className="memory-hero__line memory-hero__line--back" data-hero-word>LUXURY</span>
+            <span className="memory-hero__line memory-hero__line--front">PORTRAIT</span>
+            <span className="memory-hero__line memory-hero__line--italic">SAIGON.</span>
+          </div>
+
+          <div className="memory-hero__photo-field" aria-hidden="true">
+            <figure className="memory-hero__side memory-hero__side--left" data-hero-side data-depth-level="1.4">
+              <Image src={luxuryLayers[0]} alt="" fill sizes="22vw" className="object-cover" />
+            </figure>
+            <figure className="memory-hero__side memory-hero__side--right" data-hero-side data-depth-level="1.8">
+              <Image src={luxuryLayers[1]} alt="" fill sizes="20vw" className="object-cover" />
+            </figure>
+            <figure className="memory-hero__primary" data-hero-primary data-depth-level="1.1">
+              <Image src={heroImage} alt="Chân dung phong cách Luxury tại Sài Gòn" fill preload sizes="(max-width: 899px) 78vw, 36vw" className="object-cover" />
+              <figcaption>
+                <span>Frame 001</span>
+                <span>35mm · f/1.8 · Saigon</span>
+              </figcaption>
+            </figure>
+            <figure className="memory-hero__detail" data-hero-side data-depth-level="2.2">
+              <Image src={luxuryLayers[2]} alt="" fill sizes="14vw" className="object-cover" />
+            </figure>
+          </div>
+
+          <div className="memory-hero__note" data-depth-level="0.8">
+            <p>{intro}</p>
+            <span>{description}</span>
+          </div>
+
+          <div className="memory-hero__actions">
+            <button type="button" className="editorial-link editorial-link--primary" onClick={onBook}>
+              Xem lịch trống <CalendarDays />
+            </button>
+            <a href="#luxury" className="editorial-link editorial-link--quiet">
+              Khám phá concept <ArrowDownRight />
+            </a>
+          </div>
+
+          <p className="memory-hero__scroll"><span /> Cuộn để khám phá</p>
+        </div>
+      </div>
+    </section>
+  );
 }

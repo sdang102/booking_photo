@@ -38,10 +38,10 @@ export default function BookingCalendar({ selectedDate, bookings, blocks, loadin
   return <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-sky-200 bg-slate-50/70 p-3 sm:p-4">
     <div className="flex items-center justify-between">
       <button type="button" disabled={month <= currentMonth} onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1))} className="calendar-nav disabled:cursor-not-allowed disabled:opacity-30" aria-label="Tháng trước"><ChevronLeft className="h-4 w-4"/></button>
-      <div className="text-center"><h4 className="font-black text-slate-900">Tháng {month.getMonth()+1}/{month.getFullYear()}</h4><p className="mt-0.5 text-[10px] text-slate-500">Chọn ngày còn chỗ để xem giờ</p></div>
+      <div className="text-center"><h4 className="font-black text-slate-900">Tháng {month.getMonth()+1}/{month.getFullYear()}</h4><p className="mt-0.5 text-xs text-slate-500">Chọn ngày còn chỗ để xem giờ</p></div>
       <button type="button" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1))} className="calendar-nav" aria-label="Tháng sau"><ChevronRight className="h-4 w-4"/></button>
     </div>
-    <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[9px] font-bold uppercase text-slate-500 sm:gap-1.5">{['T2','T3','T4','T5','T6','T7','CN'].map(day=><div key={day} className="py-1">{day}</div>)}</div>
+    <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-bold uppercase text-slate-500 sm:gap-1.5">{['T2','T3','T4','T5','T6','T7','CN'].map(day=><div key={day} className="py-1">{day}</div>)}</div>
     <div className={`grid grid-cols-7 gap-1 sm:gap-1.5 ${loading?'animate-pulse opacity-60':''}`}>
       {Array.from({length:days.offset},(_,index)=><div key={`blank-${index}`}/>)}
       {Array.from({length:days.count},(_,index)=>index+1).map(day=>{
@@ -52,11 +52,11 @@ export default function BookingCalendar({ selectedDate, bookings, blocks, loadin
         const detail=meta.state==='limited'
           ? meta.bookingCount>0?`${meta.bookingCount} lịch${meta.hasBlock?' · có giờ khóa':''}`:'Khóa một phần'
           : DAY_STYLE[meta.state].label;
-        return <button type="button" key={key} disabled={disabled} onClick={()=>onSelect(key)} aria-pressed={selected} className={`min-h-11 rounded-lg border p-1 text-left transition sm:min-h-12 sm:p-1.5 ${DAY_STYLE[meta.state].className} ${selected?'ring-2 ring-sky-500 ring-offset-1':''} disabled:cursor-not-allowed`}>
-          <strong className="block text-[11px] sm:text-xs">{day}</strong><span className="mt-0.5 block truncate text-[7px] font-semibold sm:text-[8px]">{detail}</span>
+        return <button type="button" key={key} disabled={disabled} onClick={()=>onSelect(key)} aria-pressed={selected} aria-label={`${day} tháng ${month.getMonth()+1}: ${detail}`} title={detail} className={`min-h-11 rounded-lg border p-1 text-left transition sm:min-h-12 sm:p-1.5 ${DAY_STYLE[meta.state].className} ${selected?'ring-2 ring-sky-500 ring-offset-1':''} disabled:cursor-not-allowed`}>
+          <strong className="block text-sm">{day}</strong><span className="mt-0.5 hidden truncate text-[10px] font-semibold sm:block">{detail}</span>
         </button>;
       })}
     </div>
-    <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">{(['available','limited','booked','blocked'] as BookingDayState[]).map(state=><span key={state} className="flex items-center gap-1 text-[9px] text-slate-600"><i className={`h-2.5 w-2.5 rounded border ${DAY_STYLE[state].className}`}/>{DAY_STYLE[state].label}</span>)}</div>
+    <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">{(['available','limited','booked','blocked'] as BookingDayState[]).map(state=><span key={state} className="flex items-center gap-1 text-xs text-slate-600"><i className={`h-2.5 w-2.5 rounded border ${DAY_STYLE[state].className}`}/>{DAY_STYLE[state].label}</span>)}</div>
   </div>;
 }

@@ -1,7 +1,7 @@
-﻿'use client';
+'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Camera, User, LogIn, Moon, Sun, Menu, X } from 'lucide-react';
+import { useEffect, useLayoutEffect, useState } from 'react';
+import { ArrowUpRight, CalendarDays, LogIn, Menu, Moon, Sun, User, X } from 'lucide-react';
 import { useAuth } from '@/lib/context/AuthContext';
 import BrandLogo from './BrandLogo';
 import LogoutButton from './LogoutButton';
@@ -15,6 +15,14 @@ interface NavbarProps {
   bookingNotificationKey?: string;
 }
 
+const links = [
+  ['Concept Luxury', '#luxury', '01'],
+  ['Trải nghiệm', '#services', '02'],
+  ['Lịch trống', '#availability', '03'],
+  ['Về tôi', '#about', '04'],
+  ['Cảm nhận', '#reviews', '05'],
+];
+
 export default function Navbar({
   onOpenBooking,
   onOpenAuth,
@@ -23,110 +31,123 @@ export default function Navbar({
   bookingNotificationKey = '',
 }: NavbarProps) {
   const { user, isAdmin } = useAuth();
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [activeSection, setActiveSection] = useState('');
   const [seenBookingKey, setSeenBookingKey] = useState<string | null>(null);
   const openBookings = () => { setSeenBookingKey(bookingNotificationKey); onOpenBookings?.(); };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const savedTheme = localStorage.getItem('photo-booking-theme');
-    const initialTheme = savedTheme === 'dark' ? 'dark' : 'light';
+    const initialTheme = savedTheme === 'light' || savedTheme === 'dark'
+      ? savedTheme
+      : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     document.documentElement.dataset.theme = initialTheme;
+    document.documentElement.style.colorScheme = initialTheme;
     const frameId = window.requestAnimationFrame(() => setTheme(initialTheme));
     return () => window.cancelAnimationFrame(frameId);
   }, []);
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 56);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const sections = links
+      .map(([, href]) => document.querySelector<HTMLElement>(href))
+      .filter((section): section is HTMLElement => Boolean(section));
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible) setActiveSection(visible.target.id);
+    }, { rootMargin: '-22% 0px -62%', threshold: [0, 0.15, 0.4] });
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('nav-open', menuOpen);
+    return () => document.body.classList.remove('nav-open');
+  }, [menuOpen]);
+
   const toggleTheme = () => {
-    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    const currentTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+    const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
     const applyTheme = () => {
+      document.documentElement.classList.add('theme-changing');
       setTheme(nextTheme);
       document.documentElement.dataset.theme = nextTheme;
+      document.documentElement.style.colorScheme = nextTheme;
       localStorage.setItem('photo-booking-theme', nextTheme);
+      window.setTimeout(() => document.documentElement.classList.remove('theme-changing'), 300);
     };
-    const documentWithTransition = document as Document & {
-      startViewTransition?: (callback: () => void) => unknown;
-    };
-
-    if (documentWithTransition.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      documentWithTransition.startViewTransition(applyTheme);
-    } else {
-      document.documentElement.classList.add('theme-transitioning');
-      applyTheme();
-      window.setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 900);
-    }
+    applyTheme();
   };
 
+  const closeMenu = () => setMenuOpen(false);
+
   return (
-    <header className="fixed inset-x-0 top-0 z-50 w-full glass-panel border-b border-sky-200 backdrop-blur-md">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        
-        {/* Brand: Personal Photographer Studio */}
-        <BrandLogo />
-
-        <nav className="hidden items-center gap-6 lg:flex">
-          {[['Portfolio','#portfolio'],['Gói Chụp','#services'],['Lịch Trống','#availability'],['Địa Điểm','#locations'],['Về Tôi','#about']].map(([label,href])=><a key={href} href={href} className="text-xs font-semibold text-slate-600 transition-colors hover:text-sky-600">{label}</a>)}
-        </nav>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label={theme === 'light' ? 'Bật chế độ tối' : 'Bật chế độ sáng'}
-            title={theme === 'light' ? 'Chế độ tối' : 'Chế độ sáng'}
-            className={`theme-toggle ${theme === 'dark' ? 'is-dark' : ''} flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-sky-200 bg-white/80 text-sky-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-sky-400 hover:bg-sky-50 cursor-pointer`}
-          >
-            {theme === 'light' ? <Moon className="theme-icon h-4 w-4" /> : <Sun className="theme-icon h-4 w-4" />}
-          </button>
-
-          {/* Booking CTA */}
-          <button
-            onClick={() => onOpenBooking()}
-            className="sky-button px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-lg"
-          >
-            <Camera className="w-4 h-4" />
-            <span className="hidden sm:inline">Book Lịch Chụp</span>
-            <span className="sm:hidden">Book</span>
-          </button>
-          
-          {/* Login is intentionally the right-most navbar action. */}
-          {user ? (
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={openBookings} title="Xem lịch đã đặt và trạng thái booking" className="relative flex h-10 items-center gap-2 rounded-lg border border-sky-200 bg-white/90 px-3 py-1.5 text-xs">
-                <User className="w-3.5 h-3.5 text-sky-400" />
-                <span className="hidden max-w-[120px] truncate font-medium text-slate-800 sm:inline">{user.full_name}</span>
-                {isAdmin ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-sky-600/20 text-sky-700 font-bold border border-sky-500/30">
-                    Admin
-                  </span>
-                ) : (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-700">
-                    Khách
-                  </span>
-                )}
-                {bookingNotificationCount>0&&<span className="booking-notification-pulse absolute -right-2 -top-2 grid h-5 min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-white">{bookingNotificationCount>9?'9+':bookingNotificationCount}</span>}
-              </button>
-              <LogoutButton className="h-10 min-h-10" />
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenAuth}
-              className="px-3.5 py-2 rounded-lg bg-transparent hover:bg-sky-50 border border-sky-300 text-xs font-semibold text-sky-800 flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <LogIn className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden sm:inline">Đăng Nhập</span>
+    <>
+      <header className={`site-nav ${scrolled ? 'site-nav--scrolled' : ''} ${menuOpen ? 'site-nav--open' : ''}`}>
+        <div className="site-nav__inner">
+          <BrandLogo />
+          <nav className="site-nav__desktop" aria-label="Điều hướng chính">
+            {links.slice(0, 4).map(([label, href]) => {
+              const active = activeSection === href.slice(1);
+              return <a key={href} href={href} className={active ? 'is-active' : ''} aria-current={active ? 'location' : undefined}>{label}</a>;
+            })}
+          </nav>
+          <div className="site-nav__actions">
+            <button type="button" onClick={toggleTheme} className="theme-switch" aria-label={theme === 'dark' ? 'Bật chế độ sáng' : 'Bật chế độ tối'} title={theme === 'dark' ? 'Chế độ tối' : 'Chế độ sáng'}>
+              <span className="theme-switch__thumb" />
+              <Sun className="theme-switch__sun" />
+              <Moon className="theme-switch__moon" />
             </button>
-          )}
-          <button type="button" onClick={()=>setMenuOpen(!menuOpen)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-sky-200 bg-white text-slate-700 lg:hidden" aria-label="Mở menu">{menuOpen?<X className="h-4 w-4"/>:<Menu className="h-4 w-4"/>}</button>
-
+            {user ? (
+              <div className="site-nav__user">
+                <button type="button" onClick={openBookings} className="nav-icon nav-icon--user" title="Lịch của tôi">
+                  <User />
+                  {bookingNotificationCount > 0 && <span>{bookingNotificationCount > 9 ? '9+' : bookingNotificationCount}</span>}
+                </button>
+                <LogoutButton className="nav-logout" />
+              </div>
+            ) : (
+              <button type="button" onClick={onOpenAuth} className="nav-icon" aria-label="Đăng nhập"><LogIn /></button>
+            )}
+            <button type="button" onClick={() => onOpenBooking()} className="site-nav__book">
+              Đặt lịch <ArrowUpRight />
+            </button>
+            <button type="button" onClick={() => setMenuOpen((value) => !value)} className="nav-icon nav-icon--menu" aria-expanded={menuOpen} aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}>
+              {menuOpen ? <X /> : <Menu />}
+            </button>
+          </div>
         </div>
+      </header>
 
+      <div className={`nav-canvas ${menuOpen ? 'is-open' : ''}`} aria-hidden={!menuOpen}>
+        <div className="nav-canvas__image" aria-hidden="true" />
+        <div className="nav-canvas__content">
+          <p>S. ĐẶNG PHOTOGRAPHY · LUXURY PORTRAIT ONLY</p>
+          <nav aria-label="Menu toàn màn hình">
+            {links.map(([label, href, index]) => (
+              <a key={href} href={href} onClick={closeMenu} tabIndex={menuOpen ? 0 : -1} aria-current={activeSection === href.slice(1) ? 'location' : undefined}>
+                <span>{index}</span>{label}<ArrowUpRight />
+              </a>
+            ))}
+          </nav>
+          <button type="button" onClick={() => { closeMenu(); onOpenBooking(); }} tabIndex={menuOpen ? 0 : -1}>
+            <CalendarDays /> Đặt lịch Luxury Portrait
+          </button>
+          <small>{user ? `${user.full_name} · ${isAdmin ? 'Admin' : 'Khách hàng'}` : 'Đăng nhập để theo dõi lịch chụp của bạn'}</small>
+        </div>
       </div>
-      {menuOpen && <nav className="border-t border-sky-200 bg-white/95 px-4 py-4 lg:hidden">{[['Portfolio','#portfolio'],['Gói Chụp','#services'],['Lịch Trống','#availability'],['Địa Điểm','#locations'],['Về Tôi','#about']].map(([label,href])=><a key={href} href={href} onClick={()=>setMenuOpen(false)} className="block rounded-lg px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-sky-50">{label}</a>)}</nav>}
-      {user&&<BookingAlertToast key={bookingNotificationKey} count={seenBookingKey===bookingNotificationKey?0:bookingNotificationCount} title={`Bạn có ${bookingNotificationCount} lịch đã đặt`} message="Nhấn vào đây để xem ngày chụp và trạng thái mới nhất của từng đơn." onOpen={openBookings}/>} 
-    </header>
+
+      {user && <BookingAlertToast key={bookingNotificationKey} count={seenBookingKey === bookingNotificationKey ? 0 : bookingNotificationCount} title={`Bạn có ${bookingNotificationCount} lịch đã đặt`} message="Nhấn để xem ngày chụp và trạng thái mới nhất." onOpen={openBookings} />}
+    </>
   );
 }
-
-

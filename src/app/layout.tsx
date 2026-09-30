@@ -1,22 +1,24 @@
 ﻿import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Manrope, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/context/AuthContext";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const manrope = Manrope({
+  variable: "--font-sans",
+  subsets: ["latin", "vietnamese"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const playfair = Playfair_Display({
+  variable: "--font-display",
+  subsets: ["latin", "vietnamese"],
 });
 
 export const metadata: Metadata = {
-  title: "S. Đặng Photography | Đặt Lịch Chụp Ảnh Nghệ Thuật",
-  description: "Trang web đặt lịch chụp ảnh trực tiếp cùng Nhiếp ảnh gia S. Đặng. Ảnh cưới, profile doanh nhân, concept nghệ thuật.",
+  title: "S. Đặng Photography | Luxury Portrait Sài Gòn",
+  description: "Đặt lịch chụp Luxury Portrait trực tuyến cùng S. Đặng Photography — một concept duy nhất, được chuẩn bị riêng cho thần thái và câu chuyện của bạn.",
 };
+
+const themeScript = `try{const saved=localStorage.getItem('photo-booking-theme');const theme=saved==='light'||saved==='dark'?saved:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme}catch{document.documentElement.dataset.theme='light'}`;
 
 export default function RootLayout({
   children,
@@ -26,9 +28,12 @@ export default function RootLayout({
   return (
     <html
       lang="vi"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      data-theme="light"
+      suppressHydrationWarning
+      className={`${manrope.variable} ${playfair.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#fffcf7] text-slate-900 selection:bg-sky-600 selection:text-white">
+      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <body className="min-h-full flex flex-col selection:bg-brand selection:text-brand-contrast">
         <AuthProvider>
           {children}
         </AuthProvider>

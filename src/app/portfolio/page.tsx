@@ -1,2 +1,2 @@
 import { redirect } from 'next/navigation';
-export default function PortfolioPage(){redirect('/#portfolio')}
+export default function PortfolioPage(){redirect('/')}

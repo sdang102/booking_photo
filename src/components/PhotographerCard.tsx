@@ -26,7 +26,7 @@ export default function PhotographerCard({
     >
       {/* Selected Indicator */}
       {isSelected && (
-        <div className="absolute top-4 right-4 w-7 h-7 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold shadow-md shadow-sky-950/50">
+          <div className="absolute top-4 right-4 w-7 h-7 rounded-full bg-brand text-brand-contrast flex items-center justify-center font-bold shadow-md shadow-sky-950/50">
           <Check className="w-4 h-4" />
         </div>
       )}
@@ -69,7 +69,7 @@ export default function PhotographerCard({
           {photographer.specialties.map((spec, idx) => (
             <span
               key={idx}
-              className="px-2.5 py-0.5 text-[11px] rounded-md bg-white/60 text-slate-700 border border-sky-200 font-medium"
+              className="px-2.5 py-0.5 text-[11px] rounded-md bg-elevated/60 text-slate-700 border border-sky-200 font-medium"
             >
               {spec}
             </span>
