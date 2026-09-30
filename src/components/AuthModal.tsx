@@ -91,11 +91,12 @@ export default function AuthModal({
         setErrorMsg(result.message || 'Đã đăng ký. Hãy xác nhận email rồi đăng nhập.');
         return;
       }
-      onClose();
       if (result.roles?.includes('admin')) {
+        onClose();
         router.push('/admin');
       } else {
         onSuccess?.();
+        onClose();
       }
     } catch (error: unknown) {
       setErrorMsg(error instanceof Error ? error.message : 'Có lỗi xảy ra, vui lòng thử lại');
@@ -111,7 +112,7 @@ export default function AuthModal({
 
   return (
     <div
-      className="auth-backdrop fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-md"
+      className="auth-backdrop fixed inset-0 z-[220] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-md"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

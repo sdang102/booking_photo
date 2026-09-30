@@ -28,7 +28,7 @@ export default function AvailabilityCalendar({ bookings, onBook }: Props) {
   };
 
   return (
-    <section id="availability" className="scroll-reveal py-20 sm:py-28">
+    <section id="availability" className="scroll-reveal py-14 sm:py-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="text-center"><span className="text-sm font-bold uppercase tracking-[0.24em] text-sky-600">Lịch Luxury Portrait</span><h2 className="mt-3 text-4xl font-black text-slate-900 sm:text-6xl">Chọn ngày dành cho bạn</h2><p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-slate-600">Mỗi ngày chỉ nhận tối đa hai booking để mọi buổi chụp đều được chuẩn bị thật chỉn chu.</p></div>
         <div className="mx-auto mt-10 max-w-4xl rounded-3xl border border-sky-200 bg-elevated p-4 shadow-xl shadow-sky-900/5 sm:p-7">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowUpRight, CalendarDays, LogIn, Menu, Moon, Sun, User, X } from 'lucide-react';
 import { useAuth } from '@/lib/context/AuthContext';
 import BrandLogo from './BrandLogo';
@@ -34,6 +34,8 @@ export default function Navbar({
   const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [navVisible, setNavVisible] = useState(true);
+  const lastScrollY = useRef(0);
   const [activeSection, setActiveSection] = useState('');
   const [seenBookingKey, setSeenBookingKey] = useState<string | null>(null);
   const openBookings = () => { setSeenBookingKey(bookingNotificationKey); onOpenBookings?.(); };
@@ -50,10 +52,26 @@ export default function Navbar({
   }, []);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 56);
+    let frameId = 0;
+    lastScrollY.current = window.scrollY;
+    const onScroll = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(() => {
+        const currentY = window.scrollY;
+        const delta = currentY - lastScrollY.current;
+        setScrolled(currentY > 56);
+        if (currentY < 24) setNavVisible(true);
+        else if (Math.abs(delta) > 6) setNavVisible(delta > 0);
+        lastScrollY.current = currentY;
+        frameId = 0;
+      });
+    };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (frameId) window.cancelAnimationFrame(frameId);
+    };
   }, []);
 
   useEffect(() => {
@@ -93,7 +111,7 @@ export default function Navbar({
 
   return (
     <>
-      <header className={`site-nav ${scrolled ? 'site-nav--scrolled' : ''} ${menuOpen ? 'site-nav--open' : ''}`}>
+      <header className={`site-nav ${scrolled ? 'site-nav--scrolled' : ''} ${menuOpen ? 'site-nav--open' : ''} ${!navVisible && !menuOpen ? 'site-nav--hidden' : ''}`}>
         <div className="site-nav__inner">
           <BrandLogo />
           <nav className="site-nav__desktop" aria-label="Điều hướng chính">

@@ -25,6 +25,7 @@ export default function HomePage() {
   const [schedule, setSchedule] = useState<PublicScheduleItem[]>([]);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [bookingAfterAuth, setBookingAfterAuth] = useState(false);
   const [myBookingsOpen, setMyBookingsOpen] = useState(false);
   const [userBookings, setUserBookings] = useState<BookingPhotoRecord[]>([]);
   const [serviceId, setServiceId] = useState<string>();
@@ -80,9 +81,26 @@ export default function HomePage() {
 
   const openBooking = (selectedServiceId?: string) => {
     setServiceId(selectedServiceId);
+    if (!user) {
+      setBookingAfterAuth(true);
+      setAuthOpen(true);
+      return;
+    }
     setBookingOpen(true);
   };
-  const openAuth = () => setAuthOpen(true);
+  const openAuth = () => {
+    setBookingAfterAuth(false);
+    setAuthOpen(true);
+  };
+  const handleAuthSuccess = () => {
+    if (!bookingAfterAuth) return;
+    setBookingAfterAuth(false);
+    setBookingOpen(true);
+  };
+  const closeAuth = () => {
+    setBookingAfterAuth(false);
+    setAuthOpen(false);
+  };
   const onBookingSuccess = async (booking: BookingPhotoRecord) => {
     setSchedule(await getPublicSchedule());
     if (user) setUserBookings((items) => [booking, ...items]);
@@ -93,7 +111,7 @@ export default function HomePage() {
   const bookingNotificationCount=activeUserBookings.length;
   const bookingNotificationKey=activeUserBookings.map((booking)=>`${booking.id}:${booking.status}`).sort().join('|');
 
-  return <PublicMotionRoot settings={section('motion_settings')}><main className="public-home min-h-screen overflow-x-hidden">
+  return <PublicMotionRoot settings={section('motion_settings')}><main id="top" className="public-home min-h-screen overflow-x-hidden">
     <Navbar onOpenBooking={() => openBooking()} onOpenAuth={openAuth} onOpenBookings={() => setMyBookingsOpen(true)} bookingNotificationCount={bookingNotificationCount} bookingNotificationKey={bookingNotificationKey} />
     {showSection('hero')&&<Hero onBook={() => openBooking()} />}
     <LuxuryExperience onBook={() => openBooking(luxuryServices[0]?.id)} />
@@ -106,7 +124,7 @@ export default function HomePage() {
     {showSection('final_cta')&&<FinalCTA onBook={() => openBooking()} />}
     <Footer onBook={() => openBooking()} />
 
-    <AuthModal isOpen={authOpen} onClose={()=>setAuthOpen(false)}/>
+    <AuthModal isOpen={authOpen} onClose={closeAuth} onSuccess={handleAuthSuccess}/>
     <BookingWizard key={`${user?.id ?? 'guest'}-${bookingOpen ? 'open' : 'closed'}`} isOpen={bookingOpen} onClose={()=>setBookingOpen(false)} services={luxuryServices} initialServiceId={serviceId} onBookingSuccess={onBookingSuccess} onOpenAuth={()=>setAuthOpen(true)}/>
     <MyBookingsModal isOpen={myBookingsOpen} onClose={()=>setMyBookingsOpen(false)} bookings={userBookings} services={luxuryServices} onNewBooking={()=>openBooking()} onOpenAuth={openAuth}/>
   </main></PublicMotionRoot>;

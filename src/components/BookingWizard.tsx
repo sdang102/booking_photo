@@ -125,7 +125,7 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur-md sm:items-center sm:p-4" onMouseDown={(event) => event.target === event.currentTarget && closeWizard()}>
+    <div className="fixed inset-0 z-[220] flex items-end justify-center bg-slate-950/70 backdrop-blur-md sm:items-center sm:p-4" onMouseDown={(event) => event.target === event.currentTarget && closeWizard()}>
       <div className="auth-dialog flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl border border-sky-200 bg-elevated shadow-2xl sm:rounded-3xl">
         <header className="flex items-center justify-between border-b border-sky-200 p-5 sm:p-6">
           <div><span className="section-kicker">Luxury Signature · Booking online</span><h2 className="mt-1 text-2xl font-black text-slate-900">Chọn lịch cho buổi chụp của bạn</h2></div>
