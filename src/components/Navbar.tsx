@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowUpRight, CalendarDays, LogIn, Menu, Moon, Sun, User, X } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowUpRight, Bell, CalendarDays, LogIn, Menu, Moon, Settings, Sun, User, X } from 'lucide-react';
 import { useAuth } from '@/lib/context/AuthContext';
 import BrandLogo from './BrandLogo';
 import LogoutButton from './LogoutButton';
@@ -33,12 +34,21 @@ export default function Navbar({
   const { user, isAdmin } = useAuth();
   const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [navVisible, setNavVisible] = useState(true);
   const lastScrollY = useRef(0);
   const [activeSection, setActiveSection] = useState('');
   const [seenBookingKey, setSeenBookingKey] = useState<string | null>(null);
-  const openBookings = () => { setSeenBookingKey(bookingNotificationKey); onOpenBookings?.(); };
+  const unreadBookingCount = seenBookingKey === bookingNotificationKey ? 0 : bookingNotificationCount;
+  const openBookings = () => {
+    if (user && bookingNotificationKey) {
+      localStorage.setItem(`photo-booking-seen-${user.id}`, bookingNotificationKey);
+      setSeenBookingKey(bookingNotificationKey);
+    }
+    setAccountOpen(false);
+    onOpenBookings?.();
+  };
 
   useLayoutEffect(() => {
     const savedTheme = localStorage.getItem('photo-booking-theme');
@@ -52,6 +62,13 @@ export default function Navbar({
   }, []);
 
   useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      setSeenBookingKey(user ? localStorage.getItem(`photo-booking-seen-${user.id}`) : null);
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [user]);
+
+  useEffect(() => {
     let frameId = 0;
     lastScrollY.current = window.scrollY;
     const onScroll = () => {
@@ -61,7 +78,7 @@ export default function Navbar({
         const delta = currentY - lastScrollY.current;
         setScrolled(currentY > 56);
         if (currentY < 24) setNavVisible(true);
-        else if (Math.abs(delta) > 6) setNavVisible(delta > 0);
+        else if (Math.abs(delta) > 6) setNavVisible(delta < 0);
         lastScrollY.current = currentY;
         frameId = 0;
       });
@@ -93,6 +110,13 @@ export default function Navbar({
     return () => document.body.classList.remove('nav-open');
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!accountOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setAccountOpen(false); };
+    document.addEventListener('keydown', close);
+    return () => document.removeEventListener('keydown', close);
+  }, [accountOpen]);
+
   const toggleTheme = () => {
     const currentTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
     const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
@@ -108,10 +132,14 @@ export default function Navbar({
   };
 
   const closeMenu = () => setMenuOpen(false);
+  const toggleMenu = () => {
+    setAccountOpen(false);
+    setMenuOpen((value) => !value);
+  };
 
   return (
     <>
-      <header className={`site-nav ${scrolled ? 'site-nav--scrolled' : ''} ${menuOpen ? 'site-nav--open' : ''} ${!navVisible && !menuOpen ? 'site-nav--hidden' : ''}`}>
+      <header className={`site-nav ${scrolled ? 'site-nav--scrolled' : ''} ${menuOpen ? 'site-nav--open' : ''} ${!navVisible && !menuOpen && !accountOpen ? 'site-nav--hidden' : ''}`}>
         <div className="site-nav__inner">
           <BrandLogo />
           <nav className="site-nav__desktop" aria-label="Điều hướng chính">
@@ -126,26 +154,45 @@ export default function Navbar({
               <Sun className="theme-switch__sun" />
               <Moon className="theme-switch__moon" />
             </button>
+            <button type="button" onClick={() => onOpenBooking()} className="site-nav__book">
+              <span className="site-nav__book-full">Đặt lịch</span><span className="site-nav__book-short">Đặt</span><CalendarDays />
+            </button>
+            {user && unreadBookingCount > 0 && (
+              <button type="button" onClick={openBookings} className="nav-icon nav-icon--notice" aria-label={`${unreadBookingCount} thông báo lịch chưa xem`} title="Thông báo lịch chưa xem">
+                <Bell />
+                <span className="nav-icon__badge">{unreadBookingCount > 9 ? '9+' : unreadBookingCount}</span>
+              </button>
+            )}
             {user ? (
               <div className="site-nav__user">
-                <button type="button" onClick={openBookings} className="nav-icon nav-icon--user" title="Lịch của tôi">
+                <button type="button" onClick={() => setAccountOpen((value) => !value)} className="nav-icon nav-icon--user" title="Quản lý tài khoản" aria-expanded={accountOpen}>
                   <User />
-                  {bookingNotificationCount > 0 && <span>{bookingNotificationCount > 9 ? '9+' : bookingNotificationCount}</span>}
                 </button>
                 <LogoutButton className="nav-logout" />
               </div>
             ) : (
-              <button type="button" onClick={onOpenAuth} className="nav-icon" aria-label="Đăng nhập"><LogIn /></button>
+              <button type="button" onClick={onOpenAuth} className="nav-icon nav-icon--login" aria-label="Đăng nhập" title="Đăng nhập"><LogIn /></button>
             )}
-            <button type="button" onClick={() => onOpenBooking()} className="site-nav__book">
-              Đặt lịch <ArrowUpRight />
-            </button>
-            <button type="button" onClick={() => setMenuOpen((value) => !value)} className="nav-icon nav-icon--menu" aria-expanded={menuOpen} aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}>
+            <button type="button" onClick={toggleMenu} className="nav-icon nav-icon--menu" aria-expanded={menuOpen} aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}>
               {menuOpen ? <X /> : <Menu />}
             </button>
           </div>
         </div>
       </header>
+
+      {user && accountOpen && (
+        <aside className="nav-account-panel" aria-label="Quản lý tài khoản">
+          <button type="button" onClick={() => setAccountOpen(false)} className="nav-account-panel__close" aria-label="Đóng quản lý tài khoản"><X /></button>
+          <span>Tài khoản của bạn</span>
+          <strong>{user.full_name}</strong>
+          <small>{user.email}</small>
+          <div>
+            <button type="button" onClick={openBookings}><CalendarDays />Lịch đã đặt{unreadBookingCount > 0 && <b>{unreadBookingCount}</b>}</button>
+            <Link href="/profile" onClick={() => setAccountOpen(false)}><Settings />Quản lý tài khoản</Link>
+            <LogoutButton className="nav-account-panel__logout" />
+          </div>
+        </aside>
+      )}
 
       <div className={`nav-canvas ${menuOpen ? 'is-open' : ''}`} aria-hidden={!menuOpen}>
         <div className="nav-canvas__image" aria-hidden="true" />
@@ -165,7 +212,7 @@ export default function Navbar({
         </div>
       </div>
 
-      {user && <BookingAlertToast key={bookingNotificationKey} count={seenBookingKey === bookingNotificationKey ? 0 : bookingNotificationCount} title={`Bạn có ${bookingNotificationCount} lịch đã đặt`} message="Nhấn để xem ngày chụp và trạng thái mới nhất." onOpen={openBookings} />}
+      {user && <BookingAlertToast key={bookingNotificationKey} count={unreadBookingCount} title={`Bạn có ${unreadBookingCount} thông báo lịch chưa xem`} message="Nhấn để xem ngày chụp và trạng thái mới nhất." onOpen={openBookings} />}
     </>
   );
 }
