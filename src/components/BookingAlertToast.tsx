@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { BellRing, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface Props {
   count: number;
@@ -14,6 +14,13 @@ interface Props {
 
 export default function BookingAlertToast({ count, title, message, href, onOpen }: Props) {
   const [dismissedCount, setDismissedCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (count < 1 || dismissedCount === count) return;
+    const timer = window.setTimeout(() => setDismissedCount(count), 5000);
+    return () => window.clearTimeout(timer);
+  }, [count, dismissedCount]);
+
   if (count < 1 || dismissedCount === count) return null;
   const openNotice = () => { setDismissedCount(count); onOpen?.(); };
 

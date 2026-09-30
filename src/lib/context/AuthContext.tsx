@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { AppRole, UserProfile } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 import { hasRole, normalizeRoles, rolesFromAuthMetadata } from '@/lib/auth/permissions';
@@ -15,6 +15,7 @@ interface AuthContextType {
   login: (email: string, password?: string) => Promise<AuthResult>;
   register: (email: string, password: string, fullName: string, phone: string) => Promise<AuthResult>;
   resendConfirmation: (email: string) => Promise<AuthResult>;
+  updateProfile: (fullName: string, email: string, phone: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
 }
 
@@ -47,7 +48,7 @@ async function profileFromSupabase(authUser: { id:string; email?:string; user_me
     supabase.rpc('has_role', { required_role: 'photographer' }),
   ]);
   const dbRoles: AppRole[] = [isAdmin && 'admin', isPhotographer && 'photographer'].filter((role): role is AppRole => Boolean(role));
-  return { id:authUser.id,email:data?.email || authUser.email || '',full_name:data?.full_name || String(authUser.user_metadata?.full_name || 'Khách hàng'),phone:data?.phone || String(authUser.user_metadata?.phone || ''),roles:dbRoles.length?normalizeRoles(dbRoles):rolesFromAuthMetadata(authUser.app_metadata,authUser.user_metadata) };
+  return { id:authUser.id,email:authUser.email || data?.email || '',full_name:data?.full_name || String(authUser.user_metadata?.full_name || 'Khách hàng'),phone:data?.phone || String(authUser.user_metadata?.phone || ''),roles:dbRoles.length?normalizeRoles(dbRoles):rolesFromAuthMetadata(authUser.app_metadata,authUser.user_metadata) };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -160,7 +161,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }catch{return{success:false,message:'Không thể gửi lại email xác nhận lúc này.'}}
   };
 
-  const value = useMemo(() => ({ user, isAdmin: hasRole(user, 'admin'), isPhotographer: hasRole(user, 'photographer'), isLoading, login, register, resendConfirmation, logout }), [user, isLoading]);
+  const updateProfile = async (fullName: string, email: string, phone: string): Promise<AuthResult> => {
+    if (!user) return { success:false, message:'Vui lòng đăng nhập lại để cập nhật hồ sơ.' };
+    const cleanName=fullName.trim();
+    const cleanEmail=email.trim().toLowerCase();
+    const cleanPhone=normalizeVietnameseMobile(phone);
+    if(!cleanName)return{success:false,message:'Vui lòng nhập họ và tên.'};
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))return{success:false,message:'Vui lòng nhập email hợp lệ.'};
+    if(!cleanPhone)return{success:false,message:VIETNAMESE_MOBILE_ERROR};
+    try{
+      const supabase=createClient();
+      const authChanges:{email?:string;data:{full_name:string;phone:string}}={data:{full_name:cleanName,phone:cleanPhone}};
+      if(cleanEmail!==user.email.toLowerCase())authChanges.email=cleanEmail;
+      const{data:authData,error:authError}=await supabase.auth.updateUser(authChanges);
+      if(authError)return{success:false,message:authErrorMessage(authError)};
+      const effectiveEmail=authData.user?.email?.toLowerCase()||user.email;
+      const{error:profileError}=await supabase.from('profiles').update({full_name:cleanName,email:cleanEmail,phone:cleanPhone}).eq('id',user.id);
+      if(profileError)return{success:false,message:profileError.message||'Không thể lưu hồ sơ.'};
+      const nextUser={...user,full_name:cleanName,email:effectiveEmail,phone:cleanPhone};
+      setUser(nextUser);
+      localStorage.setItem(SESSION_KEY,JSON.stringify(nextUser));
+      const emailPending=cleanEmail!==effectiveEmail;
+      return{success:true,message:emailPending?'Đã lưu tên và số điện thoại. Hãy mở email mới để xác nhận thay đổi địa chỉ email.':'Đã cập nhật hồ sơ thành công.'};
+    }catch(error){
+      return{success:false,message:authErrorMessage(error instanceof Error?error:undefined)};
+    }
+  };
+
+  const value = { user, isAdmin: hasRole(user, 'admin'), isPhotographer: hasRole(user, 'photographer'), isLoading, login, register, resendConfirmation, updateProfile, logout };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

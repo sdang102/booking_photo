@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { AvailabilityBlock, PublicScheduleItem } from '@/types';
-import { dateKey, getBookingDayState, todayKey, type BookingDayState } from '@/lib/bookingAvailability';
+import { BOOKING_SHIFTS, dateKey, getBookingDayState, isRangeAvailable, todayKey, type BookingDayState } from '@/lib/bookingAvailability';
 
 interface Props {
   selectedDate: string;
@@ -14,49 +14,72 @@ interface Props {
 }
 
 const DAY_STYLE: Record<BookingDayState, { label: string; className: string }> = {
-  available: { label:'Còn trống', className:'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-400' },
-  limited: { label:'Đã có lịch', className:'border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-400' },
-  booked: { label:'Hết chỗ', className:'border-rose-200 bg-rose-50 text-rose-500' },
-  blocked: { label:'Thợ khóa lịch', className:'border-slate-200 bg-slate-100 text-slate-400' },
-  past: { label:'Đã qua', className:'border-transparent bg-slate-50 text-slate-300' },
+  available: { label: 'Còn trống', className: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-500 hover:shadow-md' },
+  limited: { label: 'Còn ít ca', className: 'border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-500 hover:shadow-md' },
+  booked: { label: 'Hết ca', className: 'border-rose-200 bg-rose-50 text-rose-500' },
+  blocked: { label: 'Tạm nghỉ', className: 'border-slate-200 bg-slate-100 text-slate-400' },
+  past: { label: 'Đã qua', className: 'border-transparent bg-slate-50 text-slate-300' },
 };
 
+function fromDateKey(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day, 12);
+}
+
+function addDays(value: string, amount: number) {
+  const date = fromDateKey(value);
+  date.setDate(date.getDate() + amount);
+  return dateKey(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 export default function BookingCalendar({ selectedDate, bookings, blocks, loading, onSelect }: Props) {
-  const today = new Date();
-  const currentDateParts = todayKey(today).split('-').map(Number);
-  const selectedParts = selectedDate.split('-').map(Number);
-  const [month, setMonth] = useState(() => selectedDate
-    ? new Date(selectedParts[0], selectedParts[1] - 1, 1)
-    : new Date(currentDateParts[0], currentDateParts[1] - 1, 1));
-  const currentMonth = new Date(currentDateParts[0], currentDateParts[1] - 1, 1);
-  const days = useMemo(() => {
-    const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-    const offset = (new Date(month.getFullYear(), month.getMonth(), 1).getDay() + 6) % 7;
-    return { count, offset };
-  }, [month]);
+  const today = todayKey();
+  const [firstDate, setFirstDate] = useState(selectedDate || today);
+  const [dateMessage, setDateMessage] = useState('');
+  const visibleDates = Array.from({ length: 7 }, (_, index) => addDays(firstDate, index));
+
+  const selectDate = (value: string) => {
+    const meta = getBookingDayState(value, bookings, blocks);
+    if (meta.state === 'available' || meta.state === 'limited') {
+      setDateMessage('');
+      setFirstDate(value);
+      onSelect(value);
+      return;
+    }
+    setDateMessage('Ngày này đã hết ca hoặc tạm nghỉ. Bạn vui lòng chọn ngày khác.');
+  };
 
   return <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-sky-200 bg-slate-50/70 p-3 sm:p-4">
-    <div className="flex items-center justify-between">
-      <button type="button" disabled={month <= currentMonth} onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1))} className="calendar-nav disabled:cursor-not-allowed disabled:opacity-30" aria-label="Tháng trước"><ChevronLeft className="h-4 w-4"/></button>
-      <div className="text-center"><h4 className="font-black text-slate-900">Tháng {month.getMonth()+1}/{month.getFullYear()}</h4><p className="mt-0.5 text-xs text-slate-500">Chọn ngày còn chỗ để xem giờ</p></div>
-      <button type="button" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1))} className="calendar-nav" aria-label="Tháng sau"><ChevronRight className="h-4 w-4"/></button>
+    <div className="flex items-center justify-between gap-2">
+      <button type="button" disabled={firstDate <= today} onClick={() => setFirstDate((value) => addDays(value, -7) < today ? today : addDays(value, -7))} className="calendar-nav shrink-0 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Xem 7 ngày trước"><ChevronLeft className="h-4 w-4" /></button>
+      <div className="min-w-0 text-center">
+        <h4 className="font-black text-slate-900">Chọn một ngày còn trống</h4>
+        <p className="mt-0.5 text-xs text-slate-500">Xem 7 ngày một lần, bấm mũi tên để xem tuần sau</p>
+      </div>
+      <button type="button" onClick={() => setFirstDate((value) => addDays(value, 7))} className="calendar-nav shrink-0" aria-label="Xem 7 ngày sau"><ChevronRight className="h-4 w-4" /></button>
     </div>
-    <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-bold uppercase text-slate-500 sm:gap-1.5">{['T2','T3','T4','T5','T6','T7','CN'].map(day=><div key={day} className="py-1">{day}</div>)}</div>
-    <div className={`grid grid-cols-7 gap-1 sm:gap-1.5 ${loading?'animate-pulse opacity-60':''}`}>
-      {Array.from({length:days.offset},(_,index)=><div key={`blank-${index}`}/>)}
-      {Array.from({length:days.count},(_,index)=>index+1).map(day=>{
-        const key=dateKey(month.getFullYear(),month.getMonth(),day);
-        const meta=getBookingDayState(key,bookings,blocks,today);
-        const disabled=loading||meta.state==='past'||meta.state==='booked'||meta.state==='blocked';
-        const selected=selectedDate===key;
-        const detail=meta.state==='limited'
-          ? meta.bookingCount>0?`${meta.bookingCount} lịch${meta.hasBlock?' · có giờ khóa':''}`:'Khóa một phần'
-          : DAY_STYLE[meta.state].label;
-        return <button type="button" key={key} disabled={disabled} onClick={()=>onSelect(key)} aria-pressed={selected} aria-label={`${day} tháng ${month.getMonth()+1}: ${detail}`} title={detail} className={`min-h-11 rounded-lg border p-1 text-left transition sm:min-h-12 sm:p-1.5 ${DAY_STYLE[meta.state].className} ${selected?'ring-2 ring-sky-500 ring-offset-1':''} disabled:cursor-not-allowed`}>
-          <strong className="block text-sm">{day}</strong><span className="mt-0.5 hidden truncate text-[10px] font-semibold sm:block">{detail}</span>
+
+    <div className={`mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 ${loading ? 'animate-pulse opacity-60' : ''}`}>
+      {visibleDates.map((key) => {
+        const value = fromDateKey(key);
+        const meta = getBookingDayState(key, bookings, blocks);
+        const disabled = loading || !['available', 'limited'].includes(meta.state);
+        const selected = selectedDate === key;
+        const openShifts = BOOKING_SHIFTS.filter((shift) => isRangeAvailable(key, shift.range, bookings, blocks)).length;
+        const weekday = new Intl.DateTimeFormat('vi-VN', { weekday: 'short' }).format(value);
+        return <button type="button" key={key} disabled={disabled} onClick={() => selectDate(key)} aria-pressed={selected} className={`min-h-24 rounded-xl border p-3 text-left transition duration-200 ${DAY_STYLE[meta.state].className} ${selected ? 'border-sky-600 bg-sky-50 ring-2 ring-sky-500 ring-offset-2' : ''} disabled:cursor-not-allowed disabled:shadow-none`}>
+          <span className="block text-xs font-bold uppercase">{weekday}</span>
+          <strong className="mt-1 block text-lg text-slate-900">{String(value.getDate()).padStart(2, '0')}/{String(value.getMonth() + 1).padStart(2, '0')}</strong>
+          <span className="mt-2 block text-[11px] font-bold">{disabled ? DAY_STYLE[meta.state].label : `${openShifts} ca còn trống`}</span>
         </button>;
       })}
     </div>
-    <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">{(['available','limited','booked','blocked'] as BookingDayState[]).map(state=><span key={state} className="flex items-center gap-1 text-xs text-slate-600"><i className={`h-2.5 w-2.5 rounded border ${DAY_STYLE[state].className}`}/>{DAY_STYLE[state].label}</span>)}</div>
+
+    <label className="mt-4 flex min-h-12 items-center gap-3 rounded-xl border border-sky-200 bg-elevated px-3 text-sm font-bold text-slate-700">
+      <CalendarDays className="h-5 w-5 shrink-0 text-sky-600" />
+      <span className="min-w-0 flex-1">Hoặc chọn ngày khác</span>
+      <input type="date" min={today} value={selectedDate} onChange={(event) => event.target.value && selectDate(event.target.value)} className="min-w-0 max-w-[9rem] rounded-lg border border-sky-200 bg-white px-2 py-2 text-sm text-slate-800" aria-label="Chọn ngày khác" />
+    </label>
+    {dateMessage && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700" role="alert">{dateMessage}</p>}
   </div>;
 }
