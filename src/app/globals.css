@@ -722,7 +722,7 @@ body.shared-transition-active { overflow: hidden; }
   html[data-theme="dark"] .theme-switch__thumb { transform: translateX(1.32rem); }
   .site-nav__user { gap: .25rem; }
   .site-nav__user .nav-icon--user, .nav-icon--notice, .nav-icon--login { display: grid !important; }
-  .site-nav__user .nav-logout { display: none !important; }
+  .site-nav__user .nav-logout { display: flex !important; width: 2.25rem; min-height: 2.25rem !important; padding: 0; border-color: currentColor; background: transparent; color: inherit; }
   .nav-icon, .nav-icon--menu { display: grid; width: 2.25rem; height: 2.25rem; flex: none; }
   .site-nav__book { display: flex; min-height: 2.25rem; gap: .35rem; padding: .55rem .6rem; font-size: .65rem; flex: none; }
   .site-nav__book-full { display: none; }

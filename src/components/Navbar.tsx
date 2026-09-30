@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, Bell, CalendarDays, LogIn, Menu, Moon, Settings, Sun, User, X } from 'lucide-react';
+import { ArrowUpRight, Bell, CalendarDays, Menu, Moon, Settings, Sun, User, X } from 'lucide-react';
 import { useAuth } from '@/lib/context/AuthContext';
 import BrandLogo from './BrandLogo';
 import LogoutButton from './LogoutButton';
@@ -171,7 +171,7 @@ export default function Navbar({
                 <LogoutButton className="nav-logout" />
               </div>
             ) : (
-              <button type="button" onClick={onOpenAuth} className="nav-icon nav-icon--login" aria-label="Đăng nhập" title="Đăng nhập"><LogIn /></button>
+              <button type="button" onClick={onOpenAuth} className="nav-icon nav-icon--login" aria-label="Đăng nhập" title="Đăng nhập"><User /></button>
             )}
             <button type="button" onClick={toggleMenu} className="nav-icon nav-icon--menu" aria-expanded={menuOpen} aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}>
               {menuOpen ? <X /> : <Menu />}
