@@ -1,5 +1,6 @@
 ﻿import type { Metadata } from "next";
 import { Manrope, Playfair_Display } from "next/font/google";
+import type { Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/context/AuthContext";
 
@@ -19,6 +20,16 @@ export const metadata: Metadata = {
 };
 
 const themeScript = `try{const saved=localStorage.getItem('photo-booking-theme');const theme=saved==='light'||saved==='dark'?saved:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme}catch{document.documentElement.dataset.theme='light'}`;
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fff8ef" },
+    { media: "(prefers-color-scheme: dark)", color: "#160e0b" },
+  ],
+};
 
 export default function RootLayout({
   children,

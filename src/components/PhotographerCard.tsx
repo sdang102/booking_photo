@@ -1,8 +1,9 @@
 ﻿'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { Photographer } from '@/types';
-import { Star, Award, Camera, Check } from 'lucide-react';
+import { Star, Award, Check } from 'lucide-react';
 
 interface PhotographerCardProps {
   photographer: Photographer;
@@ -35,10 +36,13 @@ export default function PhotographerCard({
         {/* Top Info: Avatar & Name */}
         <div className="flex items-center gap-4">
           <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-sky-500/60 shadow-md shrink-0">
-            <img
+            <Image
               src={photographer.avatar_url}
               alt={photographer.full_name}
-              className="w-full h-full object-cover"
+              fill
+              sizes="64px"
+              unoptimized
+              className="object-cover"
             />
           </div>
           <div>

@@ -59,10 +59,10 @@ export function AboutPhotographer({ section }: { section?: HomepageSection }) {
 }
 
 export function BookingProcess() {
-  const steps = ['Chọn ngày & giờ', 'Điền địa điểm', 'Gửi thông tin', 'Xác nhận lịch'];
+  const steps = ['Chọn ngày & ca trống', 'Điền thông tin buổi chụp', 'Kiểm tra & gửi yêu cầu'];
   return (
     <section className="booking-steps" data-cinematic-section>
-      <header data-reveal><span>Đặt lịch trực tuyến</span><h2>Bốn bước ngắn. Một buổi chụp được chuẩn bị kỹ.</h2></header>
+      <header data-reveal><span>Đặt lịch trực tuyến</span><h2>Ba bước rõ ràng. Hoàn tất chỉ trong vài phút.</h2></header>
       <ol>{steps.map((step, index) => <li key={step}><span>{String(index + 1).padStart(2, '0')}</span><strong>{step}</strong></li>)}</ol>
     </section>
   );

@@ -1,45 +1,112 @@
-﻿'use client';
+'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { ArrowRight, CalendarCheck2, ChevronLeft, ChevronRight, Clock3, Sparkles } from 'lucide-react';
 import type { AvailabilityStatus, PublicScheduleItem } from '@/types';
 
-interface Props { bookings: PublicScheduleItem[]; onBook: () => void; }
+interface Props { bookings: PublicScheduleItem[]; onBook: (date?: string) => void; }
+
+const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const STATUS = {
-  available: { label: 'Còn lịch', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  limited: { label: 'Còn ít slot', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  booked: { label: 'Hết lịch', className: 'bg-rose-50 text-rose-700 border-rose-200' },
-  off: { label: 'Không nhận lịch', className: 'bg-slate-100 text-slate-400 border-slate-200' },
-} satisfies Record<AvailabilityStatus, { label: string; className: string }>;
+  available: { label: 'Còn nhiều ca', shortLabel: 'Còn lịch' },
+  limited: { label: 'Sắp kín lịch', shortLabel: 'Còn ít ca' },
+  booked: { label: 'Đã kín lịch', shortLabel: 'Đã kín' },
+  off: { label: 'Tạm nghỉ', shortLabel: 'Nghỉ' },
+} satisfies Record<AvailabilityStatus, { label: string; shortLabel: string }>;
+
+const toKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 export default function AvailabilityCalendar({ bookings, onBook }: Props) {
-  const [month, setMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState('');
+
   const days = useMemo(() => {
     const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
     const offset = (new Date(month.getFullYear(), month.getMonth(), 1).getDay() + 6) % 7;
     return { count, offset };
   }, [month]);
-  const statusFor = (day: number): AvailabilityStatus => {
-    const date = new Date(month.getFullYear(), month.getMonth(), day);
-    if (date < new Date(new Date().setHours(0, 0, 0, 0)) || date.getDay() === 1) return 'off';
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const count = bookings.filter((item) => item.booking_date === key && item.status !== 'cancelled').length;
-    return count >= 2 ? 'booked' : count >= 1 ? 'limited' : 'available';
+
+  const bookingCount = (date: Date) => {
+    const key = toKey(date);
+    return bookings.filter((item) => item.booking_date === key && item.status !== 'cancelled').length;
+  };
+  const statusFor = (date: Date): AvailabilityStatus => {
+    if (date < today || date.getDay() === 1) return 'off';
+    const count = bookingCount(date);
+    return count >= 3 ? 'booked' : count >= 1 ? 'limited' : 'available';
+  };
+  const openSlots = (date: Date) => Math.max(0, 3 - bookingCount(date));
+  const selected = selectedDate ? new Date(`${selectedDate}T12:00:00`) : null;
+  const selectedLabel = selected ? new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(selected) : '';
+  const currentMonth = month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth();
+
+  const moveMonth = (amount: number) => {
+    setMonth((value) => new Date(value.getFullYear(), value.getMonth() + amount, 1));
+    setSelectedDate('');
   };
 
   return (
-    <section id="availability" className="scroll-reveal py-14 sm:py-20">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="text-center"><span className="text-sm font-bold uppercase tracking-[0.24em] text-sky-600">Lịch Luxury Portrait</span><h2 className="mt-3 text-4xl font-black text-slate-900 sm:text-6xl">Chọn ngày dành cho bạn</h2><p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-slate-600">Mỗi ngày chỉ nhận tối đa hai booking để mọi buổi chụp đều được chuẩn bị thật chỉn chu.</p></div>
-        <div className="mx-auto mt-10 max-w-4xl rounded-3xl border border-sky-200 bg-elevated p-4 shadow-xl shadow-sky-900/5 sm:p-7">
-          <div className="flex items-center justify-between"><button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="calendar-nav" aria-label="Tháng trước"><ChevronLeft /></button><h3 className="text-lg font-bold text-slate-900">Tháng {month.getMonth() + 1}, {month.getFullYear()}</h3><button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} className="calendar-nav" aria-label="Tháng sau"><ChevronRight /></button></div>
-          <div className="mt-6 grid grid-cols-7 gap-1 text-center text-xs font-bold uppercase text-slate-500 sm:gap-2">{['T2','T3','T4','T5','T6','T7','CN'].map((d) => <div key={d} className="py-2">{d}</div>)}</div>
-          <div className="grid grid-cols-7 gap-1 sm:gap-2">{Array.from({ length: days.offset }).map((_, i) => <div key={`blank-${i}`} />)}{Array.from({ length: days.count }, (_, i) => i + 1).map((day) => { const status = statusFor(day); const meta = STATUS[status]; return <button key={day} disabled={status === 'booked' || status === 'off'} onClick={onBook} aria-label={`${day} tháng ${month.getMonth()+1}: ${meta.label}`} className={`aspect-square min-h-11 rounded-xl border p-1 text-left transition-colors disabled:cursor-default ${meta.className}`}><strong className="block text-sm">{day}</strong><span className="hidden text-xs sm:block">{meta.label}</span></button>; })}</div>
-          <div className="mt-6 flex flex-wrap gap-3">{Object.entries(STATUS).map(([key, value]) => <div key={key} className="flex items-center gap-1.5 text-xs text-slate-600"><span className={`h-3 w-3 rounded border ${value.className}`} />{value.label}</div>)}</div>
+    <section id="availability" className="availability-section scroll-reveal">
+      <div className="availability-shell">
+        <header className="availability-heading">
+          <div><span><Sparkles /> Lịch Luxury Portrait</span><h2>Ngày đẹp của bạn<br /><em>bắt đầu từ đây.</em></h2></div>
+          <p>Xem nhanh lịch trống, chọn ngày phù hợp và hoàn tất yêu cầu đặt lịch chỉ trong vài phút.</p>
+        </header>
+
+        <div className="availability-card">
+          <aside className="availability-guide">
+            <span className="availability-guide__eyebrow">Lịch chụp tháng {month.getMonth() + 1}</span>
+            <h3>Mỗi ngày chỉ nhận tối đa 3 buổi chụp.</h3>
+            <p>Giới hạn số lịch giúp chúng tôi chuẩn bị concept, ánh sáng và trải nghiệm chỉn chu cho từng khách hàng.</p>
+            <div className="availability-legend">
+              {(Object.entries(STATUS) as [AvailabilityStatus, typeof STATUS[AvailabilityStatus]][]).map(([key, value]) => <div key={key}><span className={`availability-dot availability-dot--${key}`} />{value.label}</div>)}
+            </div>
+            <div className={`availability-selection ${selected ? 'is-selected' : ''}`} aria-live="polite">
+              <CalendarCheck2 />
+              <div>{selected ? <><span>Ngày bạn đã chọn</span><strong>{selectedLabel}</strong><small>{openSlots(selected)} ca đang còn trống</small></> : <><span>Bắt đầu tại đây</span><strong>Chọn một ngày còn lịch</strong><small>Sau đó tiếp tục điền thông tin đặt lịch</small></>}</div>
+            </div>
+            <button type="button" disabled={!selectedDate} onClick={() => onBook(selectedDate)} className="availability-continue">Tiếp tục đặt lịch <ArrowRight /></button>
+          </aside>
+
+          <div className="availability-calendar">
+            <div className="availability-toolbar">
+              <div><span>Chọn ngày chụp</span><h3>Tháng {month.getMonth() + 1}, {month.getFullYear()}</h3></div>
+              <div>
+                {!currentMonth && <button type="button" className="availability-today" onClick={() => { setMonth(new Date(today.getFullYear(), today.getMonth(), 1)); setSelectedDate(''); }}>Hôm nay</button>}
+                <button type="button" disabled={currentMonth} onClick={() => moveMonth(-1)} aria-label="Tháng trước"><ChevronLeft /></button>
+                <button type="button" onClick={() => moveMonth(1)} aria-label="Tháng sau"><ChevronRight /></button>
+              </div>
+            </div>
+
+            <div className="availability-weekdays">{WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div>
+            <div className="availability-days">
+              {Array.from({ length: days.offset }).map((_, index) => <span key={`blank-${index}`} aria-hidden="true" />)}
+              {Array.from({ length: days.count }, (_, index) => index + 1).map((day) => {
+                const date = new Date(month.getFullYear(), month.getMonth(), day);
+                const key = toKey(date);
+                const status = statusFor(date);
+                const disabled = status === 'booked' || status === 'off';
+                const active = selectedDate === key;
+                const isToday = key === toKey(today);
+                const label = status === 'available' ? `${openSlots(date)} ca trống` : status === 'limited' ? `${openSlots(date)} ca trống` : STATUS[status].shortLabel;
+                return <button type="button" key={key} disabled={disabled} onClick={() => setSelectedDate(key)} aria-pressed={active} aria-label={`${day} tháng ${month.getMonth() + 1}: ${STATUS[status].label}`} className={`availability-day availability-day--${status} ${active ? 'is-selected' : ''}`}>
+                  <span>{isToday ? 'Hôm nay' : new Intl.DateTimeFormat('vi-VN', { weekday: 'short' }).format(date)}</span>
+                  <strong>{day}</strong>
+                  <small><i />{label}</small>
+                </button>;
+              })}
+            </div>
+
+            <div className="availability-mobile-action">
+              <Clock3 />
+              <div><span>{selected ? selectedLabel : 'Hãy chọn ngày còn lịch'}</span><strong>{selected ? `${openSlots(selected)} ca đang còn trống` : 'Bạn chưa chọn ngày'}</strong></div>
+              <button type="button" disabled={!selectedDate} onClick={() => onBook(selectedDate)} aria-label="Tiếp tục đặt lịch"><ArrowRight /></button>
+            </div>
+          </div>
         </div>
-        <div className="mt-7 text-center"><button onClick={onBook} className="sky-button inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-base"><CalendarDays className="h-5 w-5" />Đặt lịch Luxury Portrait</button></div>
       </div>
     </section>
   );
 }
-

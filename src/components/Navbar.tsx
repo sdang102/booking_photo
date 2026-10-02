@@ -21,7 +21,7 @@ const links = [
   ['Trải nghiệm', '#services', '02'],
   ['Lịch trống', '#availability', '03'],
   ['Về tôi', '#about', '04'],
-  ['Cảm nhận', '#reviews', '05'],
+  ['Đánh giá', '#reviews', '05'],
 ];
 
 export default function Navbar({
@@ -143,9 +143,9 @@ export default function Navbar({
         <div className="site-nav__inner">
           <BrandLogo />
           <nav className="site-nav__desktop" aria-label="Điều hướng chính">
-            {links.slice(0, 4).map(([label, href]) => {
+            {links.map(([label, href]) => {
               const active = activeSection === href.slice(1);
-              return <a key={href} href={href} className={active ? 'is-active' : ''} aria-current={active ? 'location' : undefined}>{label}</a>;
+              return <a key={href} href={href} onClick={() => setActiveSection(href.slice(1))} className={active ? 'is-active' : ''} aria-current={active ? 'location' : undefined}>{label}</a>;
             })}
           </nav>
           <div className="site-nav__actions">
@@ -200,7 +200,7 @@ export default function Navbar({
           <p>S. ĐẶNG PHOTOGRAPHY · LUXURY PORTRAIT ONLY</p>
           <nav aria-label="Menu toàn màn hình">
             {links.map(([label, href, index]) => (
-              <a key={href} href={href} onClick={closeMenu} tabIndex={menuOpen ? 0 : -1} aria-current={activeSection === href.slice(1) ? 'location' : undefined}>
+              <a key={href} href={href} onClick={() => { setActiveSection(href.slice(1)); closeMenu(); }} tabIndex={menuOpen ? 0 : -1} aria-current={activeSection === href.slice(1) ? 'location' : undefined}>
                 <span>{index}</span>{label}<ArrowUpRight />
               </a>
             ))}
@@ -208,6 +208,13 @@ export default function Navbar({
           <button type="button" onClick={() => { closeMenu(); onOpenBooking(); }} tabIndex={menuOpen ? 0 : -1}>
             <CalendarDays /> Đặt lịch Luxury Portrait
           </button>
+          <div className="nav-canvas__account">
+            {user ? <>
+              <button type="button" onClick={() => { closeMenu(); openBookings(); }} tabIndex={menuOpen ? 0 : -1}><CalendarDays /> Lịch chụp của tôi{unreadBookingCount > 0 && <b>{unreadBookingCount}</b>}</button>
+              <Link href="/profile" onClick={closeMenu} tabIndex={menuOpen ? 0 : -1}><Settings /> Quản lý tài khoản</Link>
+              <div onClick={closeMenu}><LogoutButton /><span>Đăng xuất</span></div>
+            </> : <button type="button" onClick={() => { closeMenu(); onOpenAuth(); }} tabIndex={menuOpen ? 0 : -1}><User /> Đăng nhập / Đăng ký</button>}
+          </div>
           <small>{user ? `${user.full_name} · ${isAdmin ? 'Admin' : 'Khách hàng'}` : 'Đăng nhập để theo dõi lịch chụp của bạn'}</small>
         </div>
       </div>

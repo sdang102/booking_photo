@@ -77,9 +77,22 @@ export async function createReview(input: { bookingId: string; userId?: string; 
 }
 
 export async function updateReviewModeration(id: string, patch: Partial<Pick<ExperienceReview, 'is_public' | 'is_featured' | 'portfolio_slug'>>): Promise<void> {
-  const dbPatch = { is_public: patch.is_public, is_featured: patch.is_featured };
-  const { error } = await createClient().from('reviews').update(dbPatch).eq('id', id);
+  const supabase = createClient();
+  const dbPatch: { is_public?: boolean; is_featured?: boolean; portfolio_album_id?: string | null } = {};
+  if (patch.is_public !== undefined) dbPatch.is_public = patch.is_public;
+  if (patch.is_featured !== undefined) dbPatch.is_featured = patch.is_featured;
+  if ('portfolio_slug' in patch) {
+    if (!patch.portfolio_slug) dbPatch.portfolio_album_id = null;
+    else {
+      const { data: album, error: albumError } = await supabase.from('portfolio_albums').select('id').eq('slug', patch.portfolio_slug).maybeSingle();
+      if (albumError || !album) {
+        if (!isDevelopment) throw new Error('Không tìm thấy bộ ảnh để liên kết.');
+      } else dbPatch.portfolio_album_id = album.id;
+    }
+  }
+  const { error } = await supabase.from('reviews').update(dbPatch).eq('id', id);
   if (error && isDevelopment) save(localReviews().map((review) => review.id === id ? { ...review, ...patch, updated_at: new Date().toISOString() } : review));
+  else if (error) throw new Error(error.message);
 }
 
 export async function deleteReview(id: string): Promise<void> {

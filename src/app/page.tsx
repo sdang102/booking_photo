@@ -29,6 +29,7 @@ export default function HomePage() {
   const [myBookingsOpen, setMyBookingsOpen] = useState(false);
   const [userBookings, setUserBookings] = useState<BookingPhotoRecord[]>([]);
   const [serviceId, setServiceId] = useState<string>();
+  const [bookingDate, setBookingDate] = useState<string>();
   const [sections, setSections] = useState<HomepageSection[]>([]);
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
 
@@ -79,8 +80,9 @@ export default function HomePage() {
     return () => { active = false; window.removeEventListener('focus', load); window.clearInterval(interval); };
   }, [user]);
 
-  const openBooking = (selectedServiceId?: string) => {
+  const openBooking = (selectedServiceId?: string, selectedDate?: string) => {
     setServiceId(selectedServiceId);
+    setBookingDate(selectedDate);
     if (!user) {
       setBookingAfterAuth(true);
       setAuthOpen(true);
@@ -116,7 +118,7 @@ export default function HomePage() {
     {showSection('hero')&&<Hero onBook={() => openBooking()} />}
     <LuxuryExperience onBook={() => openBooking(luxuryServices[0]?.id)} />
     {showSection('services')&&<EditorialServices services={luxuryServices} onBook={openBooking} />}
-    {showSection('calendar')&&<AvailabilityCalendar bookings={schedule} onBook={() => openBooking()} />}
+    {showSection('calendar')&&<AvailabilityCalendar bookings={schedule} onBook={(date) => openBooking(undefined, date)} />}
     {showSection('about')&&<AboutPhotographer section={section('about')} />}
     {showSection('reviews')&&<ReviewsSection />}
     {showSection('booking_process')&&<BookingProcess />}
@@ -125,7 +127,7 @@ export default function HomePage() {
     <Footer onBook={() => openBooking()} />
 
     <AuthModal isOpen={authOpen} onClose={closeAuth} onSuccess={handleAuthSuccess}/>
-    <BookingWizard key={`${user?.id ?? 'guest'}-${bookingOpen ? 'open' : 'closed'}`} isOpen={bookingOpen} onClose={()=>setBookingOpen(false)} services={luxuryServices} initialServiceId={serviceId} onBookingSuccess={onBookingSuccess} onOpenAuth={()=>setAuthOpen(true)}/>
+    <BookingWizard key={`${user?.id ?? 'guest'}-${bookingOpen ? 'open' : 'closed'}`} isOpen={bookingOpen} onClose={()=>setBookingOpen(false)} services={luxuryServices} initialServiceId={serviceId} initialDate={bookingDate} onBookingSuccess={onBookingSuccess} onOpenAuth={()=>setAuthOpen(true)}/>
     <MyBookingsModal isOpen={myBookingsOpen} onClose={()=>setMyBookingsOpen(false)} bookings={userBookings} services={luxuryServices} onNewBooking={()=>openBooking()} onOpenAuth={openAuth}/>
   </main></PublicMotionRoot>;
 }
