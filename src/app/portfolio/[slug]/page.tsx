@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import type { PortfolioAlbum } from '@/types';
 import { getPortfolioAlbum } from '@/lib/services/contentService';
-import BrandLogo from '@/components/BrandLogo';
+import PublicSiteHeader from '@/components/PublicSiteHeader';
 import PublicMotionRoot from '@/components/motion/PublicMotionRoot';
 
 export default function PortfolioAlbumPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -15,25 +15,24 @@ export default function PortfolioAlbumPage({ params }: { params: Promise<{ slug:
 
   useEffect(() => { getPortfolioAlbum(slug).then(setAlbum); }, [slug]);
 
-  if (album === undefined) return <main className="grid min-h-screen place-items-center bg-background">Đang tải album…</main>;
+  if (album === undefined) return <main className="fin-site min-h-screen bg-background"><PublicSiteHeader /><div className="grid min-h-screen place-items-center">Đang tải album…</div></main>;
   if (!album) return (
-    <main className="grid min-h-screen place-items-center bg-background">
-      <div className="text-center">
-        <h1 className="text-2xl font-black">Album không tồn tại hoặc chưa công khai</h1>
-        <Link href="/#portfolio" className="mt-4 inline-block text-sky-700">Quay lại Portfolio</Link>
+    <main className="fin-site min-h-screen bg-background">
+      <PublicSiteHeader />
+      <div className="grid min-h-screen place-items-center text-center">
+        <div>
+          <h1 className="text-2xl font-black">Album không tồn tại hoặc chưa công khai</h1>
+          <Link href="/portfolio" className="mt-4 inline-block text-sky-700">Quay lại Bộ sưu tập</Link>
+        </div>
       </div>
     </main>
   );
 
   return (
     <PublicMotionRoot>
-      <main className="album-page min-h-screen">
-        <header className="album-nav sticky top-0 z-50 border-b border-sky-200 bg-elevated/90 backdrop-blur-xl">
-          <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6">
-            <Link href="/#portfolio" className="flex items-center gap-2 text-sm font-bold text-sky-700"><ArrowLeft className="h-4 w-4" />Quay lại Portfolio</Link>
-            <BrandLogo compact />
-          </div>
-        </header>
+      <main className="fin-site album-page min-h-screen">
+        <PublicSiteHeader />
+        <Link href="/portfolio" className="album-back-fixed"><ArrowLeft />Quay lại Bộ sưu tập</Link>
 
         <section className="album-hero" data-cinematic-section>
           <div className="album-hero-media" data-parallax="42">
@@ -45,7 +44,7 @@ export default function PortfolioAlbumPage({ params }: { params: Promise<{ slug:
             <h1>{album.title}</h1>
             {album.location && <p><MapPin />{album.location}</p>}
           </div>
-          <div className="album-hero-index" aria-hidden="true">A visual story<br />S. Đặng Studio</div>
+          <div className="album-hero-index" aria-hidden="true">A visual story<br />FIN PHOTO</div>
         </section>
 
         <section className="album-story" data-cinematic-section>
@@ -59,7 +58,7 @@ export default function PortfolioAlbumPage({ params }: { params: Promise<{ slug:
           </div>
           <div className="album-cta" data-reveal>
             <h2>Bạn muốn một bộ ảnh mang câu chuyện riêng?</h2>
-            <Link href="/#services">Xem Gói Chụp</Link>
+            <Link href="/services">Xem Gói Chụp</Link>
           </div>
         </section>
       </main>

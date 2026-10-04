@@ -1,2 +1,3 @@
-import { redirect } from 'next/navigation';
-export default function ServicesPage(){redirect('/#services')}
+import FinServicesPage from '@/components/FinServicesPage';
+
+export default function ServicesPage() { return <FinServicesPage />; }

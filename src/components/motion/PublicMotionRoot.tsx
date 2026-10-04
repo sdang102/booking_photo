@@ -13,7 +13,34 @@ export default function PublicMotionRoot({ settings, children }: { settings?: Ho
   useEffect(() => {
     const scope = root.current;
     if (!scope) return;
-    document.documentElement.classList.remove('motion-ready');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const revealTargets = Array.from(scope.querySelectorAll<HTMLElement>([
+      '[data-reveal]',
+      '.fin-hero__content > *', '.fin-stats > *', '.fin-heading > *',
+      '.fin-craft article', '.fin-work', '.fin-process li', '.fin-project',
+      '.fin-services-plans article', '.fin-extras article',
+      '.fin-about-hero__copy > *', '.fin-about-hero figure',
+      '.fin-about-statement > .fin-shell > *', '.fin-about-profile figure', '.fin-about-profile > .fin-shell > div',
+      '.review-archive__hero > *', '.review-archive__list article', '.fin-review-hero__copy > *',
+      '.fin-review-score', '.fin-review-distribution', '.fin-review-featured', '.fin-review-library__head > *',
+      '.fin-review-grid article', '.fin-review-cta > .fin-shell', '.booking-page-embed',
+    ].join(',')));
+    revealTargets.forEach((target, index) => {
+      target.classList.add('fin-reveal');
+      target.style.setProperty('--reveal-delay', `${(index % 5) * 70}ms`);
+    });
+    let revealObserver: IntersectionObserver | undefined;
+    if (reducedMotion) revealTargets.forEach(target => target.classList.add('is-visible'));
+    else {
+      revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-visible');
+          revealObserver?.unobserve(entry.target);
+        });
+      }, { threshold: 0.12, rootMargin: '0px 0px -7% 0px' });
+      revealTargets.forEach(target => revealObserver?.observe(target));
+    }
 
     let progressFrame = 0;
 
@@ -31,6 +58,7 @@ export default function PublicMotionRoot({ settings, children }: { settings?: Ho
     return () => {
       window.removeEventListener('scroll', updateProgress);
       if (progressFrame) window.cancelAnimationFrame(progressFrame);
+      revealObserver?.disconnect();
     };
   }, []);
 

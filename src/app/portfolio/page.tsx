@@ -1,2 +1,3 @@
-import { redirect } from 'next/navigation';
-export default function PortfolioPage(){redirect('/')}
+import FinPortfolioArchive from '@/components/FinPortfolioArchive';
+
+export default function PortfolioPage() { return <FinPortfolioArchive />; }

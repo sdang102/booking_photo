@@ -18,11 +18,12 @@ interface Props {
   initialDate?: string;
   onBookingSuccess: (booking: BookingPhotoRecord) => void;
   onOpenAuth?: () => void;
+  variant?: 'modal' | 'page';
 }
 
 const STEP_LABELS = ['Chọn lịch', 'Thông tin', 'Kiểm tra'];
 
-export default function BookingWizard({ isOpen, onClose, services, initialServiceId, initialDate, onBookingSuccess }: Props) {
+export default function BookingWizard({ isOpen, onClose, services, initialServiceId, initialDate, onBookingSuccess, variant = 'modal' }: Props) {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [date, setDate] = useState(initialDate || '');
@@ -104,9 +105,9 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
   };
 
   return (
-    <div className="booking-backdrop fixed inset-0 z-[220] flex items-end justify-center bg-slate-950/70 sm:items-center sm:p-4" onMouseDown={(event) => event.target === event.currentTarget && closeWizard()}>
+    <div className={variant === 'page' ? 'booking-page-embed' : 'booking-backdrop fixed inset-0 z-[220] flex items-end justify-center bg-slate-950/70 sm:items-center sm:p-4'} onMouseDown={(event) => variant === 'modal' && event.target === event.currentTarget && closeWizard()}>
       <div className="booking-dialog auth-dialog flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl border border-sky-200 bg-elevated shadow-2xl sm:rounded-3xl">
-        <header className="flex items-start justify-between gap-4 border-b border-sky-200 p-4 sm:px-7 sm:py-5">
+        <header className="booking-dialog__head flex items-start justify-between gap-4 border-b border-sky-200 p-4 sm:px-7 sm:py-5">
           <div><span className="section-kicker">Đặt lịch trực tuyến · Chỉ khoảng 2 phút</span><h2 className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">Đặt buổi chụp của bạn</h2></div>
           <button type="button" onClick={closeWizard} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100" aria-label="Đóng cửa sổ đặt lịch"><X className="h-5 w-5" /></button>
         </header>
@@ -121,7 +122,7 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
         ) : (
           <>
             <div className="border-b border-sky-100 px-4 py-3 sm:px-7">
-              <div className="flex items-center gap-2" aria-label={`Bước ${step} trên 3`}>
+              <div className="booking-step-progress flex items-center gap-2" aria-label={`Bước ${step} trên 3`}>
                 {STEP_LABELS.map((label, index) => { const number = index + 1; return <div key={label} className="flex min-w-0 flex-1 items-center gap-2"><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-black ${step >= number ? 'bg-brand text-brand-contrast' : 'bg-slate-100 text-slate-400'}`}>{step > number ? <Check className="h-4 w-4" /> : number}</span><span className={`truncate text-xs font-bold sm:text-sm ${step >= number ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>{number < 3 && <span className="ml-auto h-px w-full max-w-12 bg-sky-200" />}</div>; })}
               </div>
             </div>
@@ -186,7 +187,7 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
 }
 
 function StepTitle({ icon, title, copy }: { icon: React.ReactNode; title: string; copy: string }) {
-  return <div><span className="text-sky-600 [&>svg]:h-6 [&>svg]:w-6">{icon}</span><h3 className="mt-2 text-2xl font-black text-slate-900">{title}</h3><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">{copy}</p></div>;
+  return <div className="booking-step-title"><span className="text-sky-600 [&>svg]:h-6 [&>svg]:w-6">{icon}</span><h3 className="mt-2 text-2xl font-black text-slate-900">{title}</h3><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">{copy}</p></div>;
 }
 
 function Required() { return <span className="text-rose-600" aria-hidden="true">*</span>; }

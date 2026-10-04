@@ -7,6 +7,7 @@ import RoleGuard from '@/components/RoleGuard';
 import BrandLogo from '@/components/BrandLogo';
 import { useAuth } from '@/lib/context/AuthContext';
 import { getUserBookings } from '@/lib/services/bookingService';
+import LogoutButton from '@/components/LogoutButton';
 
 export default function Profile() {
   const { user, updateProfile } = useAuth();
@@ -61,6 +62,9 @@ export default function Profile() {
         <div className="mt-7 space-y-3">
           {user?.roles.includes('admin') && <Link href="/admin" className="sky-button block rounded-xl px-4 py-3 text-center text-sm">Mở trang quản trị</Link>}
           {user?.roles.includes('photographer') && <Link href="/photographer" className="sky-button block rounded-xl px-4 py-3 text-center text-sm">Mở workspace thợ chụp</Link>}
+          <div className="border-t border-sky-200 pt-4">
+            <LogoutButton label="Đăng xuất" className="min-h-12 w-full rounded-xl border-rose-200 text-rose-700" />
+          </div>
         </div>
       </section>
     </main>

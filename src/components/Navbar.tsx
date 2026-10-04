@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, Bell, CalendarDays, Menu, Moon, Settings, Sun, User, X } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Aperture, ArrowUpRight, Bell, CalendarDays, House, Images, Menu, PackageOpen, Settings, Star, User, X } from 'lucide-react';
 import { useAuth } from '@/lib/context/AuthContext';
 import BrandLogo from './BrandLogo';
 import LogoutButton from './LogoutButton';
@@ -17,11 +18,11 @@ interface NavbarProps {
 }
 
 const links = [
-  ['Concept Luxury', '#luxury', '01'],
-  ['Trải nghiệm', '#services', '02'],
-  ['Lịch trống', '#availability', '03'],
-  ['Về tôi', '#about', '04'],
-  ['Đánh giá', '#reviews', '05'],
+  { label: 'Trang chủ', href: '/', index: '01', icon: House },
+  { label: 'Bộ sưu tập', href: '/portfolio', index: '02', icon: Images },
+  { label: 'Gói chụp', href: '/services', index: '03', icon: PackageOpen },
+  { label: 'Portfolio', href: '/about', index: '04', icon: Aperture },
+  { label: 'Đánh giá', href: '/reviews', index: '05', icon: Star },
 ];
 
 export default function Navbar({
@@ -31,14 +32,13 @@ export default function Navbar({
   bookingNotificationCount = 0,
   bookingNotificationKey = '',
 }: NavbarProps) {
+  const pathname = usePathname();
   const { user, isAdmin } = useAuth();
-  const [theme, setTheme] = useState<'light' | 'dark' | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [navVisible, setNavVisible] = useState(true);
   const lastScrollY = useRef(0);
-  const [activeSection, setActiveSection] = useState('');
   const [seenBookingKey, setSeenBookingKey] = useState<string | null>(null);
   const unreadBookingCount = seenBookingKey === bookingNotificationKey ? 0 : bookingNotificationCount;
   const openBookings = () => {
@@ -49,17 +49,6 @@ export default function Navbar({
     setAccountOpen(false);
     onOpenBookings?.();
   };
-
-  useLayoutEffect(() => {
-    const savedTheme = localStorage.getItem('photo-booking-theme');
-    const initialTheme = savedTheme === 'light' || savedTheme === 'dark'
-      ? savedTheme
-      : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    document.documentElement.dataset.theme = initialTheme;
-    document.documentElement.style.colorScheme = initialTheme;
-    const frameId = window.requestAnimationFrame(() => setTheme(initialTheme));
-    return () => window.cancelAnimationFrame(frameId);
-  }, []);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -92,20 +81,6 @@ export default function Navbar({
   }, []);
 
   useEffect(() => {
-    const sections = links
-      .map(([, href]) => document.querySelector<HTMLElement>(href))
-      .filter((section): section is HTMLElement => Boolean(section));
-    const observer = new IntersectionObserver((entries) => {
-      const visible = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-      if (visible) setActiveSection(visible.target.id);
-    }, { rootMargin: '-22% 0px -62%', threshold: [0, 0.15, 0.4] });
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
     document.body.classList.toggle('nav-open', menuOpen);
     return () => document.body.classList.remove('nav-open');
   }, [menuOpen]);
@@ -117,25 +92,12 @@ export default function Navbar({
     return () => document.removeEventListener('keydown', close);
   }, [accountOpen]);
 
-  const toggleTheme = () => {
-    const currentTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-    const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
-    const applyTheme = () => {
-      document.documentElement.classList.add('theme-changing');
-      setTheme(nextTheme);
-      document.documentElement.dataset.theme = nextTheme;
-      document.documentElement.style.colorScheme = nextTheme;
-      localStorage.setItem('photo-booking-theme', nextTheme);
-      window.setTimeout(() => document.documentElement.classList.remove('theme-changing'), 300);
-    };
-    applyTheme();
-  };
-
   const closeMenu = () => setMenuOpen(false);
   const toggleMenu = () => {
     setAccountOpen(false);
     setMenuOpen((value) => !value);
   };
+  const isActive = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href);
 
   return (
     <>
@@ -143,17 +105,12 @@ export default function Navbar({
         <div className="site-nav__inner">
           <BrandLogo />
           <nav className="site-nav__desktop" aria-label="Điều hướng chính">
-            {links.map(([label, href]) => {
-              const active = activeSection === href.slice(1);
-              return <a key={href} href={href} onClick={() => setActiveSection(href.slice(1))} className={active ? 'is-active' : ''} aria-current={active ? 'location' : undefined}>{label}</a>;
+            {links.map(({ label, href, icon: Icon }) => {
+              const active = isActive(href);
+              return <Link key={href} href={href} className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined}><Icon /><span>{label}</span></Link>;
             })}
           </nav>
           <div className="site-nav__actions">
-            <button type="button" onClick={toggleTheme} className="theme-switch" aria-label={theme === 'dark' ? 'Bật chế độ sáng' : 'Bật chế độ tối'} title={theme === 'dark' ? 'Chế độ tối' : 'Chế độ sáng'}>
-              <span className="theme-switch__thumb" />
-              <Sun className="theme-switch__sun" />
-              <Moon className="theme-switch__moon" />
-            </button>
             <button type="button" onClick={() => onOpenBooking()} className="site-nav__book">
               <span className="site-nav__book-full">Đặt lịch</span><span className="site-nav__book-short">Đặt</span><CalendarDays />
             </button>
@@ -168,7 +125,6 @@ export default function Navbar({
                 <button type="button" onClick={() => setAccountOpen((value) => !value)} className="nav-icon nav-icon--user" title="Quản lý tài khoản" aria-expanded={accountOpen}>
                   <User />
                 </button>
-                <LogoutButton className="nav-logout" />
               </div>
             ) : (
               <button type="button" onClick={onOpenAuth} className="nav-icon nav-icon--login" aria-label="Đăng nhập" title="Đăng nhập"><User /></button>
@@ -189,7 +145,7 @@ export default function Navbar({
           <div>
             <button type="button" onClick={openBookings}><CalendarDays />Lịch đã đặt{unreadBookingCount > 0 && <b>{unreadBookingCount}</b>}</button>
             <Link href="/profile" onClick={() => setAccountOpen(false)}><Settings />Quản lý tài khoản</Link>
-            <LogoutButton className="nav-account-panel__logout" />
+            <LogoutButton className="nav-account-panel__logout" label="Đăng xuất" />
           </div>
         </aside>
       )}
@@ -197,16 +153,16 @@ export default function Navbar({
       <div className={`nav-canvas ${menuOpen ? 'is-open' : ''}`} aria-hidden={!menuOpen}>
         <div className="nav-canvas__image" aria-hidden="true" />
         <div className="nav-canvas__content">
-          <p>S. ĐẶNG PHOTOGRAPHY · LUXURY PORTRAIT ONLY</p>
+          <p>FIN PHOTO · EDITORIAL PHOTOGRAPHY</p>
           <nav aria-label="Menu toàn màn hình">
-            {links.map(([label, href, index]) => (
-              <a key={href} href={href} onClick={() => { setActiveSection(href.slice(1)); closeMenu(); }} tabIndex={menuOpen ? 0 : -1} aria-current={activeSection === href.slice(1) ? 'location' : undefined}>
-                <span>{index}</span>{label}<ArrowUpRight />
-              </a>
+            {links.map(({ label, href, index, icon: Icon }) => (
+              <Link key={href} href={href} onClick={closeMenu} tabIndex={menuOpen ? 0 : -1} className={isActive(href) ? 'is-active' : ''} aria-current={isActive(href) ? 'page' : undefined}>
+                <span>{index}</span><Icon /><strong>{label}</strong><ArrowUpRight />
+              </Link>
             ))}
           </nav>
           <button type="button" onClick={() => { closeMenu(); onOpenBooking(); }} tabIndex={menuOpen ? 0 : -1}>
-            <CalendarDays /> Đặt lịch Luxury Portrait
+            <CalendarDays /> Đặt lịch cùng FIN PHOTO
           </button>
           <div className="nav-canvas__account">
             {user ? <>

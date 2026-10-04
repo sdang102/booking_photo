@@ -6,7 +6,7 @@ import { LogOut, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/context/AuthContext';
 
-export default function LogoutButton({className=''}:{className?:string}){
+export default function LogoutButton({className='',label}:{className?:string;label?:string}){
   const {logout}=useAuth();
   const router=useRouter();
   const[open,setOpen]=useState(false);
@@ -60,7 +60,7 @@ export default function LogoutButton({className=''}:{className?:string}){
   ):null;
 
   return <>
-    <button type="button" onClick={()=>setOpen(true)} title="Đăng xuất" aria-label="Đăng xuất" className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border border-sky-200 bg-elevated p-0 text-slate-600 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 ${className}`}><LogOut className="h-4 w-4"/></button>
+    <button type="button" onClick={()=>setOpen(true)} title="Đăng xuất" aria-label="Đăng xuất" className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-sky-200 bg-elevated px-3 text-slate-600 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 ${className}`}><LogOut className="h-4 w-4"/>{label && <span>{label}</span>}</button>
     {modal}
   </>;
 }
