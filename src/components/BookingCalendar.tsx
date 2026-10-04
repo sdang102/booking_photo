@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { AvailabilityBlock, PublicScheduleItem } from '@/types';
-import { BOOKING_SHIFTS, dateKey, getBookingDayState, isRangeAvailable, todayKey, type BookingDayState } from '@/lib/bookingAvailability';
+import { dateKey, getBookingDayState, todayKey, type BookingDayState } from '@/lib/bookingAvailability';
 
 interface Props {
   selectedDate: string;
@@ -13,73 +13,78 @@ interface Props {
   onSelect: (date: string) => void;
 }
 
-const DAY_STYLE: Record<BookingDayState, { label: string; className: string }> = {
-  available: { label: 'Còn trống', className: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-500 hover:shadow-md' },
-  limited: { label: 'Còn ít ca', className: 'border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-500 hover:shadow-md' },
-  booked: { label: 'Hết ca', className: 'border-rose-200 bg-rose-50 text-rose-500' },
-  blocked: { label: 'Tạm nghỉ', className: 'border-slate-200 bg-slate-100 text-slate-400' },
-  past: { label: 'Đã qua', className: 'border-transparent bg-slate-50 text-slate-300' },
+const DAY_META: Record<BookingDayState, { label: string; className: string }> = {
+  available: { label: 'Còn chỗ', className: 'is-open' },
+  limited: { label: 'Còn ít chỗ', className: 'is-limited' },
+  partially_blocked: { label: 'Có ca bị chặn', className: 'is-blocked-partial' },
+  booked: { label: 'Hết lịch', className: 'is-full' },
+  blocked: { label: 'Ngày không nhận job', className: 'is-blocked' },
+  past: { label: 'Đã qua', className: 'is-past' },
 };
+
+const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
 function fromDateKey(value: string) {
   const [year, month, day] = value.split('-').map(Number);
   return new Date(year, month - 1, day, 12);
 }
 
-function addDays(value: string, amount: number) {
-  const date = fromDateKey(value);
-  date.setDate(date.getDate() + amount);
-  return dateKey(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
 export default function BookingCalendar({ selectedDate, bookings, blocks, loading, onSelect }: Props) {
   const today = todayKey();
-  const [firstDate, setFirstDate] = useState(selectedDate || today);
+  const initialDate = fromDateKey(selectedDate || today);
+  const [viewMonth, setViewMonth] = useState(() => new Date(initialDate.getFullYear(), initialDate.getMonth(), 1, 12));
   const [dateMessage, setDateMessage] = useState('');
-  const visibleDates = Array.from({ length: 7 }, (_, index) => addDays(firstDate, index));
+
+  const monthCells = useMemo(() => {
+    const year = viewMonth.getFullYear();
+    const month = viewMonth.getMonth();
+    const leadingDays = (new Date(year, month, 1, 12).getDay() + 6) % 7;
+    return Array.from({ length: 42 }, (_, index) => {
+      const value = new Date(year, month, index - leadingDays + 1, 12);
+      return { value, inMonth: value.getMonth() === month, key: dateKey(value.getFullYear(), value.getMonth(), value.getDate()) };
+    });
+  }, [viewMonth]);
+
+  const todayDate = fromDateKey(today);
+  const canGoBack = viewMonth.getFullYear() > todayDate.getFullYear() || viewMonth.getMonth() > todayDate.getMonth();
+  const moveMonth = (amount: number) => setViewMonth((current) => new Date(current.getFullYear(), current.getMonth() + amount, 1, 12));
 
   const selectDate = (value: string) => {
     const meta = getBookingDayState(value, bookings, blocks);
-    if (meta.state === 'available' || meta.state === 'limited') {
+    if (meta.state === 'available' || meta.state === 'limited' || meta.state === 'partially_blocked') {
       setDateMessage('');
-      setFirstDate(value);
       onSelect(value);
       return;
     }
-    setDateMessage('Ngày này đã hết ca hoặc tạm nghỉ. Bạn vui lòng chọn ngày khác.');
+    setDateMessage(meta.state === 'blocked' ? 'Ngày này FIN PHOTO không nhận job vì có lịch riêng. Bạn vui lòng chọn ngày khác.' : 'Ngày này đã hết lịch. Bạn vui lòng chọn ngày khác.');
   };
 
-  return <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-sky-200 bg-slate-50/70 p-3 sm:p-4">
-    <div className="flex items-center justify-between gap-2">
-      <button type="button" disabled={firstDate <= today} onClick={() => setFirstDate((value) => addDays(value, -7) < today ? today : addDays(value, -7))} className="calendar-nav shrink-0 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Xem 7 ngày trước"><ChevronLeft className="h-4 w-4" /></button>
-      <div className="min-w-0 text-center">
-        <h4 className="font-black text-slate-900">Chọn một ngày còn trống</h4>
-        <p className="mt-0.5 text-xs text-slate-500">Xem 7 ngày một lần, bấm mũi tên để xem tuần sau</p>
+  return <div className={`booking-month-calendar ${loading ? 'is-loading' : ''}`}>
+    <div className="booking-month-calendar__head">
+      <div><CalendarDays /><strong>Tháng {String(viewMonth.getMonth() + 1).padStart(2, '0')}, {viewMonth.getFullYear()}</strong></div>
+      <div>
+        <button type="button" disabled={!canGoBack} onClick={() => moveMonth(-1)} aria-label="Xem tháng trước"><ChevronLeft /></button>
+        <button type="button" onClick={() => moveMonth(1)} aria-label="Xem tháng sau"><ChevronRight /></button>
       </div>
-      <button type="button" onClick={() => setFirstDate((value) => addDays(value, 7))} className="calendar-nav shrink-0" aria-label="Xem 7 ngày sau"><ChevronRight className="h-4 w-4" /></button>
     </div>
-
-    <div className={`mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 ${loading ? 'animate-pulse opacity-60' : ''}`}>
-      {visibleDates.map((key) => {
-        const value = fromDateKey(key);
+    <div className="booking-month-calendar__weekdays">{WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div>
+    <div className="booking-month-calendar__days">
+      {monthCells.map(({ value, inMonth, key }) => {
         const meta = getBookingDayState(key, bookings, blocks);
-        const disabled = loading || !['available', 'limited'].includes(meta.state);
+        const disabled = loading || !inMonth || !['available', 'limited', 'partially_blocked'].includes(meta.state);
         const selected = selectedDate === key;
-        const openShifts = BOOKING_SHIFTS.filter((shift) => isRangeAvailable(key, shift.range, bookings, blocks)).length;
-        const weekday = new Intl.DateTimeFormat('vi-VN', { weekday: 'short' }).format(value);
-        return <button type="button" key={key} disabled={disabled} onClick={() => selectDate(key)} aria-pressed={selected} className={`min-h-24 rounded-xl border p-3 text-left transition duration-200 ${DAY_STYLE[meta.state].className} ${selected ? 'border-sky-600 bg-sky-50 ring-2 ring-sky-500 ring-offset-2' : ''} disabled:cursor-not-allowed disabled:shadow-none`}>
-          <span className="block text-xs font-bold uppercase">{weekday}</span>
-          <strong className="mt-1 block text-lg text-slate-900">{String(value.getDate()).padStart(2, '0')}/{String(value.getMonth() + 1).padStart(2, '0')}</strong>
-          <span className="mt-2 block text-[11px] font-bold">{disabled ? DAY_STYLE[meta.state].label : `${openShifts} ca còn trống`}</span>
-        </button>;
+        return <button
+          type="button"
+          key={key}
+          disabled={disabled}
+          onClick={() => selectDate(key)}
+          aria-label={`${String(value.getDate()).padStart(2, '0')}/${String(value.getMonth() + 1).padStart(2, '0')}/${value.getFullYear()} · ${inMonth ? DAY_META[meta.state].label : 'Ngoài tháng đang xem'}`}
+          aria-pressed={selected}
+          className={`${inMonth ? DAY_META[meta.state].className : 'is-outside'} ${selected ? 'is-selected' : ''}`}
+        ><span>{String(value.getDate()).padStart(2, '0')}</span>{selected && <i />}</button>;
       })}
     </div>
-
-    <label className="mt-4 flex min-h-12 items-center gap-3 rounded-xl border border-sky-200 bg-elevated px-3 text-sm font-bold text-slate-700">
-      <CalendarDays className="h-5 w-5 shrink-0 text-sky-600" />
-      <span className="min-w-0 flex-1">Hoặc chọn ngày khác</span>
-      <input type="date" min={today} value={selectedDate} onChange={(event) => event.target.value && selectDate(event.target.value)} className="min-w-0 max-w-[9rem] rounded-lg border border-sky-200 bg-white px-2 py-2 text-sm text-slate-800" aria-label="Chọn ngày khác" />
-    </label>
-    {dateMessage && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700" role="alert">{dateMessage}</p>}
+    <div className="booking-month-calendar__legend"><span><i className="is-open" />Còn chỗ</span><span><i className="is-full" />Hết lịch</span><span><i className="is-blocked" />Có lịch thợ chặn</span></div>
+    {dateMessage && <p className="booking-month-calendar__message" role="alert">{dateMessage}</p>}
   </div>;
 }

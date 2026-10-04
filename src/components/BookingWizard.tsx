@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Calendar, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock, Mail, MapPin, Phone, Sparkles, User, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { AlertTriangle, Calendar, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, Info, Mail, MapPin, PackageOpen, Phone, Sparkles, Sun, Sunset, User, X } from 'lucide-react';
 import type { AvailabilityBlock, BookingFormData, BookingPhotoRecord, PublicScheduleItem, Service } from '@/types';
 import { createBookingPhoto, getAvailabilityBlocks, getPublicSchedule } from '@/lib/services/bookingService';
 import { useAuth } from '@/lib/context/AuthContext';
 import { formatVND } from './ServiceCard';
 import { normalizeVietnameseMobile, VIETNAMESE_MOBILE_ERROR } from '@/lib/phone';
-import { BOOKING_SHIFTS, isRangeAvailable } from '@/lib/bookingAvailability';
+import { BOOKING_SHIFTS, isRangeAvailable, rangesOverlap } from '@/lib/bookingAvailability';
 import BookingCalendar from './BookingCalendar';
 
 interface Props {
@@ -22,6 +23,11 @@ interface Props {
 }
 
 const STEP_LABELS = ['Chọn lịch', 'Thông tin', 'Kiểm tra'];
+const SHIFT_PRESENTATION = {
+  morning: { title: 'Buổi Sáng', copy: 'Ánh sáng tự nhiên dịu êm', badge: 'Còn chỗ', icon: Sun },
+  afternoon: { title: 'Buổi Chiều', copy: 'Ánh sáng khối tương phản sâu', badge: 'Khuyên dùng', icon: Sun },
+  evening: { title: 'Hoàng Hôn & Tối', copy: 'Chuyển sắc rực rỡ và đèn nghệ thuật', badge: 'Golden Hour', icon: Sunset },
+} as const;
 
 export default function BookingWizard({ isOpen, onClose, services, initialServiceId, initialDate, onBookingSuccess, variant = 'modal' }: Props) {
   const { user } = useAuth();
@@ -39,8 +45,11 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<BookingPhotoRecord | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState(initialServiceId || services[0]?.id || '');
+  const [servicePickerOpen, setServicePickerOpen] = useState(false);
+  const servicePickerRef = useRef<HTMLDivElement>(null);
 
-  const service = useMemo(() => services.find((item) => item.id === initialServiceId) ?? services[0], [initialServiceId, services]);
+  const service = useMemo(() => services.find((item) => item.id === selectedServiceId) ?? services[0], [selectedServiceId, services]);
   const total = service?.price || 0;
   const selectedShift = BOOKING_SHIFTS.find((shift) => shift.range === time);
   const availableShifts = date ? BOOKING_SHIFTS.filter((shift) => isRangeAvailable(date, shift.range, calendarBookings, availabilityBlocks)) : [];
@@ -64,12 +73,37 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
     return () => { active = false; };
   }, [isOpen, user]);
 
+  useEffect(() => {
+    if (!servicePickerOpen) return;
+    const closePicker = (event: PointerEvent) => {
+      if (!servicePickerRef.current?.contains(event.target as Node)) setServicePickerOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setServicePickerOpen(false); };
+    document.addEventListener('pointerdown', closePicker);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closePicker);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [servicePickerOpen]);
+
   if (!isOpen) return null;
 
   const closeWizard = () => {
     setStep(1); setError(''); setSuccess(null); setDate(''); setTime(''); setAddress(''); setNotes('');
     setName(user?.full_name || ''); setPhone(user?.phone || ''); setEmail(user?.email || '');
     onClose();
+  };
+
+  const notice = error
+    ? { type: 'error' as const, eyebrow: 'Chưa thể tiếp tục', title: 'Vui lòng kiểm tra lại', message: error, action: 'Đã hiểu' }
+    : success
+      ? { type: 'success' as const, eyebrow: 'Đặt lịch thành công', title: 'Yêu cầu đã được gửi!', message: `Mã lịch: PHOT-${success.id.slice(-8).toUpperCase()}. Chúng tôi sẽ liên hệ xác nhận và tư vấn concept phù hợp với bạn.`, action: 'Hoàn tất' }
+      : null;
+
+  const closeNotice = () => {
+    if (success) closeWizard();
+    else setError('');
   };
 
   const next = () => {
@@ -106,21 +140,23 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
 
   return (
     <div className={variant === 'page' ? 'booking-page-embed' : 'booking-backdrop fixed inset-0 z-[220] flex items-end justify-center bg-slate-950/70 sm:items-center sm:p-4'} onMouseDown={(event) => variant === 'modal' && event.target === event.currentTarget && closeWizard()}>
+      {notice && createPortal(<div className="booking-error-backdrop" onMouseDown={(event) => event.target === event.currentTarget && closeNotice()}>
+        <section className={`booking-error-dialog is-${notice.type}`} role="alertdialog" aria-modal="true" aria-labelledby="booking-notice-title" aria-describedby="booking-notice-message">
+          <button type="button" className="booking-error-dialog__close" onClick={closeNotice} aria-label="Đóng thông báo"><X /></button>
+          <span className="booking-error-dialog__icon">{notice.type === 'success' ? <CheckCircle2 /> : <AlertTriangle />}</span>
+          <p>{notice.eyebrow}</p>
+          <h3 id="booking-notice-title">{notice.title}</h3>
+          <div id="booking-notice-message">{notice.message}</div>
+          <button type="button" className="booking-error-dialog__action" onClick={closeNotice} autoFocus>{notice.action}</button>
+        </section>
+      </div>, document.body)}
       <div className="booking-dialog auth-dialog flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl border border-sky-200 bg-elevated shadow-2xl sm:rounded-3xl">
         <header className="booking-dialog__head flex items-start justify-between gap-4 border-b border-sky-200 p-4 sm:px-7 sm:py-5">
           <div><span className="section-kicker">Đặt lịch trực tuyến · Chỉ khoảng 2 phút</span><h2 className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">Đặt buổi chụp của bạn</h2></div>
           <button type="button" onClick={closeWizard} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100" aria-label="Đóng cửa sổ đặt lịch"><X className="h-5 w-5" /></button>
         </header>
 
-        {success ? (
-          <div className="p-8 text-center sm:p-14">
-            <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-500" />
-            <h3 className="mt-5 text-3xl font-black text-slate-900">Yêu cầu đã được gửi!</h3>
-            <p className="mt-3 text-base leading-7 text-slate-600">Mã lịch: <strong>PHOT-{success.id.slice(-8).toUpperCase()}</strong><br />Chúng tôi sẽ liên hệ xác nhận và tư vấn concept phù hợp với bạn.</p>
-            <button onClick={closeWizard} className="sky-button mt-7 rounded-xl px-7 py-3">Hoàn tất</button>
-          </div>
-        ) : (
-          <>
+        <>
             <div className="border-b border-sky-100 px-4 py-3 sm:px-7">
               <div className="booking-step-progress flex items-center gap-2" aria-label={`Bước ${step} trên 3`}>
                 {STEP_LABELS.map((label, index) => { const number = index + 1; return <div key={label} className="flex min-w-0 flex-1 items-center gap-2"><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-black ${step >= number ? 'bg-brand text-brand-contrast' : 'bg-slate-100 text-slate-400'}`}>{step > number ? <Check className="h-4 w-4" /> : number}</span><span className={`truncate text-xs font-bold sm:text-sm ${step >= number ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>{number < 3 && <span className="ml-auto h-px w-full max-w-12 bg-sky-200" />}</div>; })}
@@ -129,18 +165,27 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
 
             <div className="grid min-h-0 flex-1 lg:grid-cols-[1fr_18rem]">
               <div className="booking-content overflow-y-auto p-4 sm:p-7">
-                {error && <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700" role="alert">{error}</div>}
-                {step === 1 && <div>
-                  <StepTitle icon={<Calendar />} title="Chọn ngày và ca chụp" copy="Ngày khả dụng được hiển thị ngay trên lịch. Sau khi chọn ngày, hãy chọn một trong các ca còn trống." />
-                  <BookingCalendar selectedDate={date} bookings={calendarBookings} blocks={availabilityBlocks} loading={availabilityLoading} onSelect={(value) => { setDate(value); setTime(''); setError(''); }} />
-                  {date && <section className="mx-auto mt-5 max-w-xl rounded-2xl border border-sky-200 bg-slate-50 p-4">
-                    <div className="flex items-center gap-3"><Clock className="h-5 w-5 text-sky-700" /><h4 className="font-black text-slate-900">Ca chụp ngày {date.split('-').reverse().join('/')}</h4></div>
-                    <div className="mt-4 grid gap-2 sm:grid-cols-3">{BOOKING_SHIFTS.map((shift) => {
-                      const available = availableShifts.some((item) => item.id === shift.id);
-                      return <button type="button" key={shift.id} disabled={!available} onClick={() => { setTime(shift.range); setError(''); }} className={`rounded-xl border p-3 text-left transition ${time === shift.range ? 'border-sky-600 bg-sky-50 ring-2 ring-sky-200' : available ? 'border-sky-200 bg-elevated hover:border-sky-500' : 'cursor-not-allowed border-slate-200 bg-slate-100 opacity-55'}`}><strong className="block text-sm text-slate-800">{shift.label}</strong><span className="mt-1 block text-xs text-slate-500">{shift.range} · {available ? 'Còn trống' : 'Đã kín'}</span></button>;
-                    })}</div>
-                    {!availableShifts.length && <p className="mt-3 text-sm font-semibold text-rose-700">Ngày này đã hết ca. Vui lòng chọn ngày khác.</p>}
-                  </section>}
+                {step === 1 && <div className="booking-schedule-step">
+                  <header className="booking-schedule-heading"><span>Phần 02</span><i>/</i><h3>Ngày Thực Hiện &amp; Khung Giờ Ánh Sáng</h3></header>
+                  <div className="booking-schedule-grid">
+                    <BookingCalendar selectedDate={date} bookings={calendarBookings} blocks={availabilityBlocks} loading={availabilityLoading} onSelect={(value) => { setDate(value); setTime(''); setError(''); }} />
+                    <section className="booking-light-slots" aria-label="Chọn khung giờ chụp">
+                      <h4>Khung giờ quang học</h4>
+                      <div>{BOOKING_SHIFTS.map((shift) => {
+                        const available = Boolean(date) && availableShifts.some((item) => item.id === shift.id);
+                        const blockedByPhotographer = Boolean(date) && availabilityBlocks.some((block) => block.date === date && rangesOverlap(shift.range, `${block.start_time} - ${block.end_time}`));
+                        const selected = time === shift.range;
+                        const presentation = SHIFT_PRESENTATION[shift.id];
+                        const ShiftIcon = presentation.icon;
+                        return <button type="button" key={shift.id} disabled={!available} onClick={() => { setTime(shift.range); setError(''); }} className={`${selected ? 'is-selected' : ''} ${available ? 'is-available' : blockedByPhotographer ? 'is-blocked' : 'is-unavailable'}`}>
+                          <span className="booking-light-slots__title"><ShiftIcon /><strong>{presentation.title}</strong><b>{selected ? 'Đã chọn' : available ? presentation.badge : blockedByPhotographer ? 'Thợ đã chặn' : date ? 'Hết lịch' : 'Chọn ngày'}</b></span>
+                          <span className="booking-light-slots__copy">{shift.range} <i>•</i> {presentation.copy}</span>
+                        </button>;
+                      })}</div>
+                      <p className="booking-light-slots__notice"><Info />Mỗi khung giờ chỉ nhận tối đa 01 khách hàng độc quyền tại sảnh.</p>
+                      {date && !availableShifts.length && <p className="booking-light-slots__empty">Ngày này đã hết lịch. Vui lòng chọn ngày khác.</p>}
+                    </section>
+                  </div>
                 </div>}
 
                 {step === 2 && <div>
@@ -164,8 +209,23 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
 
               <aside className="hidden border-l border-sky-100 bg-slate-50 p-6 lg:block">
                 <Sparkles className="h-5 w-5 text-sky-700" /><p className="mt-4 text-xs font-bold uppercase tracking-wider text-sky-700">Lịch của bạn</p>
-                <h3 className="mt-2 font-black text-slate-900">{service?.title ?? 'Đang tải gói chụp...'}</h3>
-                <strong className="mt-2 block text-lg text-sky-700">{service ? formatVND(total) : '—'}</strong>
+                <div className={`booking-service-picker ${servicePickerOpen ? 'is-open' : ''}`} ref={servicePickerRef}>
+                  <span>Chọn gói chụp</span>
+                  <button type="button" className="booking-service-picker__trigger" onClick={() => setServicePickerOpen((value) => !value)} aria-haspopup="listbox" aria-expanded={servicePickerOpen}>
+                    <PackageOpen />
+                    <span><strong>{service?.title ?? 'Chọn một gói chụp'}</strong><small>{service ? formatVND(service.price) : '—'}</small></span>
+                    <ChevronDown className="booking-service-picker__chevron" />
+                  </button>
+                  {servicePickerOpen && <div className="booking-service-picker__menu" role="listbox" aria-label="Danh sách gói chụp">
+                    {services.map((item, index) => {
+                      const selected = item.id === service?.id;
+                      return <button type="button" key={item.id} role="option" aria-selected={selected} className={selected ? 'is-selected' : ''} onClick={() => { setSelectedServiceId(item.id); setServicePickerOpen(false); }}>
+                        <span><small>Gói {String(index + 1).padStart(2, '0')}</small><strong>{item.title}</strong><b>{formatVND(item.price)}</b></span>
+                        <i>{selected ? <Check /> : <ChevronRight />}</i>
+                      </button>;
+                    })}
+                  </div>}
+                </div>
                 <div className="mt-6 space-y-4 border-t border-sky-200 pt-5 text-sm">
                   <SummaryRow icon={<Calendar />} label={date ? date.split('-').reverse().join('/') : 'Chưa chọn ngày'} />
                   <SummaryRow icon={<Clock />} label={selectedShift ? `${selectedShift.label} · ${time}` : 'Chưa chọn ca'} />
@@ -179,8 +239,7 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
               <button onClick={() => { setError(''); if (step === 1) closeWizard(); else setStep(step - 1); }} className="inline-flex items-center gap-2 rounded-xl border border-sky-200 px-4 py-3 text-sm font-bold text-slate-600"><ChevronLeft className="h-4 w-4" />{step === 1 ? 'Đóng' : 'Quay lại'}</button>
               {step < 3 ? <button onClick={next} className="sky-button inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm">{step === 1 ? 'Điền thông tin' : 'Kiểm tra lịch'}<ChevronRight className="h-4 w-4" /></button> : <button onClick={submit} disabled={submitting || !service} className="sky-button rounded-xl px-5 py-3 text-sm disabled:opacity-60">{submitting ? 'Đang gửi...' : 'Gửi yêu cầu đặt lịch'}</button>}
             </footer>
-          </>
-        )}
+        </>
       </div>
     </div>
   );

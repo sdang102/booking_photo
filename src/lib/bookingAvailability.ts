@@ -80,7 +80,7 @@ export function isRangeAvailable(
     .every((busyRange) => !rangesOverlap(range, busyRange));
 }
 
-export type BookingDayState = 'available' | 'limited' | 'booked' | 'blocked' | 'past';
+export type BookingDayState = 'available' | 'limited' | 'partially_blocked' | 'booked' | 'blocked' | 'past';
 
 export function getBookingDayState(date: string, bookings: PublicScheduleItem[], blocks: AvailabilityBlock[], now = new Date()) {
   if (date < todayKey(now)) return { state: 'past' as const, bookingCount: 0, hasBlock: false };
@@ -96,7 +96,9 @@ export function getBookingDayState(date: string, bookings: PublicScheduleItem[],
   if (fullDayBlocked) return { state: 'blocked' as const, bookingCount: bookingRanges.length, hasBlock: true };
 
   const hasOpenShift = BOOKING_SHIFTS.some((shift) => isRangeAvailable(date, shift.range, bookings, blocks, now));
-  if (bookingRanges.length >= MAX_BOOKINGS_PER_DAY || !hasOpenShift) return { state: 'booked' as const, bookingCount: bookingRanges.length, hasBlock:dayBlocks.length > 0 };
-  if (bookingRanges.length || dayBlocks.length) return { state: 'limited' as const, bookingCount: bookingRanges.length, hasBlock:dayBlocks.length > 0 };
+  if (!hasOpenShift && dayBlocks.length) return { state: 'blocked' as const, bookingCount: bookingRanges.length, hasBlock:true };
+  if (bookingRanges.length >= MAX_BOOKINGS_PER_DAY || !hasOpenShift) return { state: 'booked' as const, bookingCount: bookingRanges.length, hasBlock:false };
+  if (dayBlocks.length) return { state: 'partially_blocked' as const, bookingCount: bookingRanges.length, hasBlock:true };
+  if (bookingRanges.length) return { state: 'limited' as const, bookingCount: bookingRanges.length, hasBlock:false };
   return { state: 'available' as const, bookingCount: 0, hasBlock: false };
 }

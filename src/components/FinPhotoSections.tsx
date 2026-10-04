@@ -31,7 +31,7 @@ export function FinHero({ onBook }: { onBook: () => void }) {
       <p className="fin-hero__lead">Chúng tôi biến cảm xúc chân thật thành những thước ảnh thanh lịch, có chiều sâu và còn nguyên giá trị qua năm tháng.</p>
       <div className="fin-actions">
         <button type="button" className="fin-button fin-button--gold" onClick={onBook}>Khám phá gói chụp <ArrowRight /></button>
-        <Link className="fin-button fin-button--ghost" href="/portfolio">Xem portfolio <MoveUpRight /></Link>
+        <Link className="fin-button fin-button--ghost" href="/about">Xem portfolio <MoveUpRight /></Link>
       </div>
     </div>
     <div className="fin-shell fin-stats">

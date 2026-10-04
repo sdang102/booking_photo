@@ -345,24 +345,48 @@ export async function updatePhotographerNote(bookingId:string,note:string){
 }
 
 const AVAILABILITY_KEY = 'photo_availability_blocks_v1';
+
+function getLocalAvailabilityBlocks(): AvailabilityBlock[] {
+  if (!isDevelopment || typeof window === 'undefined') return [];
+  try {
+    const value = JSON.parse(localStorage.getItem(AVAILABILITY_KEY) || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+// Booking availability is public schedule data. Always use the public RPC for
+// visitors and signed-in customers alike; a signed-in customer cannot select
+// the protected availability table directly because of RLS.
 export async function getAvailabilityBlocks(): Promise<AvailabilityBlock[]> {
   try {
-    const supabase=createClient();
-    const {data:{user}}=await supabase.auth.getUser();
-    let result=user?await supabase.from('availability').select('*').in('status',['blocked','off']).order('date'):await supabase.rpc('get_public_availability');
-    if(result.error)result=await supabase.rpc('get_public_availability');
-    if(!result.error&&result.data)return result.data as AvailabilityBlock[];
+    const {data,error}=await createClient().rpc('get_public_availability');
+    if(!error&&data)return data as AvailabilityBlock[];
   } catch { /* Development fallback. */ }
-  if (!isDevelopment || typeof window === 'undefined') return [];
-  try { const value = JSON.parse(localStorage.getItem(AVAILABILITY_KEY) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; }
+  return getLocalAvailabilityBlocks();
+}
+
+// The photographer workspace needs the role-protected rows so it can remove
+// its own blocks. Keep this separate from the public booking read above.
+export async function getPhotographerAvailabilityBlocks(): Promise<AvailabilityBlock[]> {
+  try {
+    const {data,error}=await createClient().from('availability').select('*').in('status',['blocked','off']).order('date').order('start_time');
+    if(!error&&data)return data as AvailabilityBlock[];
+  } catch { /* Use the public/local fallback below. */ }
+  return getAvailabilityBlocks();
 }
 
 export async function createAvailabilityBlock(input: Omit<AvailabilityBlock, 'id' | 'created_at'>) {
+  const range=`${input.start_time} - ${input.end_time}`;
+  const conflict=(await getAllBookings()).find((booking)=>booking.booking_date===input.date&&['confirmed','checked_in','shooting','completed'].includes(booking.status)&&rangesOverlap(range,booking.booking_time));
+  if(conflict)throw new Error(`Không thể chặn ca ${range}: khách ${conflict.customer_name} đã có booking được xác nhận.`);
   const { data, error } = await createClient().from('availability').insert({ date:input.date,start_time:input.start_time,end_time:input.end_time,reason:input.reason,status:'blocked' }).select().single();
   if (!error && data) return data as AvailabilityBlock;
+  if(error&&(error.code==='P0001'||/confirmed booking|booking.*confirmed/i.test(error.message)))throw new Error(`Không thể chặn ca ${range} vì đã có booking được xác nhận.`);
   if (!isDevelopment) throw error ?? new Error('Không thể chặn lịch.');
   const block: AvailabilityBlock = { ...input, id: `block_${Date.now()}`, created_at: new Date().toISOString() };
-  const blocks = [block, ...(await getAvailabilityBlocks())];
+  const blocks = [block, ...getLocalAvailabilityBlocks()];
   localStorage.setItem(AVAILABILITY_KEY, JSON.stringify(blocks));
   return block;
 }
@@ -371,7 +395,7 @@ export async function removeAvailabilityBlock(id: string) {
   const { error } = await createClient().from('availability').delete().eq('id', id);
   if (!error) return;
   if (!isDevelopment) throw error;
-  localStorage.setItem(AVAILABILITY_KEY, JSON.stringify((await getAvailabilityBlocks()).filter((block) => block.id !== id)));
+  localStorage.setItem(AVAILABILITY_KEY, JSON.stringify(getLocalAvailabilityBlocks().filter((block) => block.id !== id)));
 }
 
 export function getLocalBookings(): BookingPhotoRecord[] {

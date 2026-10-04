@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Aperture, ArrowUpRight, Bell, CalendarDays, House, Images, Menu, PackageOpen, Settings, Star, User, X } from 'lucide-react';
+import { Aperture, ArrowUpRight, CalendarDays, House, Images, Menu, PackageOpen, Settings, Star, User, X } from 'lucide-react';
 import { useAuth } from '@/lib/context/AuthContext';
 import BrandLogo from './BrandLogo';
 import LogoutButton from './LogoutButton';
-import BookingAlertToast from './BookingAlertToast';
 
 interface NavbarProps {
   onOpenBooking: (serviceId?: string) => void;
@@ -114,12 +113,6 @@ export default function Navbar({
             <button type="button" onClick={() => onOpenBooking()} className="site-nav__book">
               <span className="site-nav__book-full">Đặt lịch</span><span className="site-nav__book-short">Đặt</span><CalendarDays />
             </button>
-            {user && unreadBookingCount > 0 && (
-              <button type="button" onClick={openBookings} className="nav-icon nav-icon--notice" aria-label={`${unreadBookingCount} thông báo lịch chưa xem`} title="Thông báo lịch chưa xem">
-                <Bell />
-                <span className="nav-icon__badge">{unreadBookingCount > 9 ? '9+' : unreadBookingCount}</span>
-              </button>
-            )}
             {user ? (
               <div className="site-nav__user">
                 <button type="button" onClick={() => setAccountOpen((value) => !value)} className="nav-icon nav-icon--user" title="Quản lý tài khoản" aria-expanded={accountOpen}>
@@ -175,7 +168,6 @@ export default function Navbar({
         </div>
       </div>
 
-      {user && <BookingAlertToast key={bookingNotificationKey} count={unreadBookingCount} title={`Bạn có ${unreadBookingCount} thông báo lịch chưa xem`} message="Nhấn để xem ngày chụp và trạng thái mới nhất." onOpen={openBookings} />}
     </>
   );
 }
