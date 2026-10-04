@@ -26,6 +26,7 @@ export default function AvailabilityManager(){
   const[message,setMessage]=useState<{type:'success'|'error';text:string}|null>(null);
   const[busy,setBusy]=useState(false);
   const[removingId,setRemovingId]=useState('');
+  const[removingDay,setRemovingDay]=useState('');
 
   useEffect(()=>{
     Promise.all([getAllBookings(),getPhotographerAvailabilityBlocks()]).then(([bookingItems,availability])=>{
@@ -90,6 +91,21 @@ export default function AvailabilityManager(){
     finally{setRemovingId('')}
   };
 
+  const unblockDay=async(day:string,dayBlocks:AvailabilityBlock[])=>{
+    if(!dayBlocks.length)return;
+    if(!window.confirm(`Bạn có chắc muốn gỡ toàn bộ ${dayBlocks.length} ca đang chặn ngày ${formatShortDate(day)}?\n\nTất cả các ca này sẽ được mở lại cho khách đặt lịch.`))return;
+    setRemovingDay(day);setMessage(null);
+    try{
+      await Promise.all(dayBlocks.map((block)=>removeAvailabilityBlock(block.id)));
+      const removedIds=new Set(dayBlocks.map((block)=>block.id));
+      setBlocks((current)=>current.filter((block)=>!removedIds.has(block.id)));
+      setMessage({type:'success',text:`Đã gỡ toàn bộ lịch chặn ngày ${formatShortDate(day)}.`});
+    }catch(error){
+      setBlocks(await getPhotographerAvailabilityBlocks());
+      setMessage({type:'error',text:error instanceof Error?error.message:'Không thể gỡ toàn bộ lịch chặn trong ngày.'});
+    }finally{setRemovingDay('')}
+  };
+
   return <>
     <div className="flex items-end justify-between gap-4"><div><p className="section-kicker">Quản lý ngày nghỉ</p><h1 className="mt-2 text-3xl font-black">Chặn lịch</h1><p className="mt-2 text-sm text-slate-500">Khóa từng ca hoặc cả ngày để khách không thể đặt trùng lịch riêng của bạn.</p></div><button type="button" onClick={()=>{setOpen((value)=>!value);setMessage(null)}} className="sky-button flex min-h-12 items-center gap-2 rounded-xl px-4 text-sm"><Plus className="h-4 w-4"/>{open?'Đóng form':'Tạo lịch chặn'}</button></div>
 
@@ -102,7 +118,7 @@ export default function AvailabilityManager(){
       <button disabled={busy} className="mt-5 min-h-12 w-full rounded-xl border border-rose-500 bg-rose-500 font-bold text-white transition hover:bg-rose-600 disabled:cursor-wait disabled:opacity-60">{busy?'Đang cập nhật lịch…':allDay?'Xác nhận chặn cả ngày':selectedShifts.length?`Xác nhận chặn ${selectedShifts.length} ca`:'Xác nhận chặn lịch'}</button>
     </form>}
 
-    <section className="mt-9"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="section-kicker">Lịch nghỉ</p><h2 className="mt-2 text-xl font-black">Các ca đang chặn</h2></div><span className="text-xs text-slate-500">{blocks.length} mục đang chặn</span></div><div className="mt-4 space-y-5">{Object.entries(groupedBlocks).map(([day,dayBlocks])=><div key={day} className="overflow-hidden rounded-2xl border border-rose-200 bg-white"><header className="flex items-center gap-2 border-b border-rose-200 bg-rose-50 px-4 py-3"><CalendarDays className="h-4 w-4 text-rose-700"/><strong>{formatLongDate(day)}</strong></header><div className="divide-y divide-sky-100">{dayBlocks?.map((block)=><div key={block.id} className="flex items-center justify-between gap-4 p-4"><div><strong className="text-sm text-rose-700">{blockLabel(block)}</strong><p className="mt-1 text-xs text-slate-500">{block.reason}</p></div><button type="button" disabled={removingId===block.id} onClick={()=>void unblock(block)} className="flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-bold text-rose-700 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5"/>{removingId===block.id?'Đang gỡ…':'Gỡ chặn'}</button></div>)}</div></div>)}{!blocks.length&&<div className="rounded-2xl border border-dashed border-sky-300 bg-white p-8 text-center"><CalendarDays className="mx-auto h-7 w-7 text-amber-400"/><h3 className="mt-3 font-black">Chưa có lịch chặn</h3><p className="mt-1 text-sm text-slate-500">Các ca nghỉ hoặc ngày không nhận lịch sẽ xuất hiện tại đây.</p></div>}</div></section>
+    <section className="mt-9"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="section-kicker">Lịch nghỉ</p><h2 className="mt-2 text-xl font-black">Các ca đang chặn</h2></div><span className="text-xs text-slate-500">{blocks.length} mục đang chặn</span></div><div className="mt-4 space-y-5">{Object.entries(groupedBlocks).map(([day,dayBlocks])=><div key={day} className="overflow-hidden rounded-2xl border border-rose-200 bg-white"><header className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-200 bg-rose-50 px-4 py-3"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-rose-700"/><strong>{formatLongDate(day)}</strong></span><button type="button" disabled={removingDay===day} onClick={()=>void unblockDay(day,dayBlocks??[])} className="flex min-h-9 items-center gap-2 rounded-lg border border-rose-300 bg-rose-50 px-3 text-xs font-bold text-rose-700 disabled:cursor-wait disabled:opacity-50"><Trash2 className="h-3.5 w-3.5"/>{removingDay===day?'Đang gỡ cả ngày…':'Gỡ chặn cả ngày'}</button></header><div className="divide-y divide-sky-100">{dayBlocks?.map((block)=><div key={block.id} className="flex items-center justify-between gap-4 p-4"><div><strong className="text-sm text-rose-700">{blockLabel(block)}</strong><p className="mt-1 text-xs text-slate-500">{block.reason}</p></div><button type="button" disabled={removingId===block.id||removingDay===day} onClick={()=>void unblock(block)} className="flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-bold text-rose-700 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5"/>{removingId===block.id?'Đang gỡ…':'Gỡ chặn'}</button></div>)}</div></div>)}{!blocks.length&&<div className="rounded-2xl border border-dashed border-sky-300 bg-white p-8 text-center"><CalendarDays className="mx-auto h-7 w-7 text-amber-400"/><h3 className="mt-3 font-black">Chưa có lịch chặn</h3><p className="mt-1 text-sm text-slate-500">Các ca nghỉ hoặc ngày không nhận lịch sẽ xuất hiện tại đây.</p></div>}</div></section>
   </>;
 }
 
