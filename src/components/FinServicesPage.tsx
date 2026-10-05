@@ -4,18 +4,19 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Check, Clock3, Images, Plus } from 'lucide-react';
-import type { Service } from '@/types';
+import type { Service, ServiceAddon } from '@/types';
 import { MOCK_SERVICES } from '@/lib/data/mockData';
 import { getServices } from '@/lib/services/bookingService';
+import { getServiceAddons } from '@/lib/services/contentService';
 import { formatVND } from './ServiceCard';
 import PublicSiteHeader from './PublicSiteHeader';
 import { FinFooter } from './FinPhotoSections';
 import PublicMotionRoot from './motion/PublicMotionRoot';
 
-const extras = [
-  ['Thêm giờ sáng tác', 'Mở rộng thời gian chụp cho concept nhiều bối cảnh.', 'Từ 800.000đ / giờ'],
-  ['Makeup & Hair Artist', 'Chuyên viên đồng hành và dặm chỉnh suốt buổi chụp.', 'Từ 600.000đ / layout'],
-  ['Photobook mỹ thuật', 'In album cao cấp trên giấy fine-art bền màu.', 'Từ 1.200.000đ'],
+const defaultExtras: ServiceAddon[] = [
+  {id:'extra-time',title:'Thêm giờ sáng tác',description:'Mở rộng thời gian chụp cho concept nhiều bối cảnh.',price:800000,price_label:'Từ 800.000đ / giờ'},
+  {id:'extra-makeup',title:'Makeup & Hair Artist',description:'Chuyên viên đồng hành và dặm chỉnh suốt buổi chụp.',price:600000,price_label:'Từ 600.000đ / layout'},
+  {id:'extra-book',title:'Photobook mỹ thuật',description:'In album cao cấp trên giấy fine-art bền màu.',price:1200000,price_label:'Từ 1.200.000đ'},
 ];
 
 const faqs = [
@@ -26,8 +27,9 @@ const faqs = [
 
 export default function FinServicesPage() {
   const [services, setServices] = useState<Service[]>(MOCK_SERVICES);
+  const [extras, setExtras] = useState<ServiceAddon[]>(defaultExtras);
   const [open, setOpen] = useState(0);
-  useEffect(() => { getServices().then(items => { if (items.length) setServices(items); }); }, []);
+  useEffect(() => { Promise.all([getServices(),getServiceAddons()]).then(([items,addons]) => { if (items.length) setServices(items); if(addons.length)setExtras(addons); }); }, []);
   const plans = services.slice(0, 3);
 
   return <PublicMotionRoot><main className="fin-services-page fin-site">
@@ -46,7 +48,7 @@ export default function FinServicesPage() {
       ['Tư vấn moodboard', ...plans.map(() => 'Có')],
       ['Hướng dẫn tạo dáng', ...plans.map(() => 'Xuyên suốt')],
     ].map(row => <div className="fin-compare__row" key={row[0]}>{row.map((cell, i) => <span key={`${cell}-${i}`}>{cell}</span>)}</div>)}</div></div></section>
-    <section className="fin-extras"><div className="fin-shell"><header className="fin-heading fin-heading--split"><div><p className="fin-kicker"><span /> Tùy biến trải nghiệm</p><h2>Dịch vụ bổ sung.</h2></div><p>Linh hoạt nâng cấp các chi tiết sáng tạo để buổi chụp trở thành một trải nghiệm trọn vẹn hơn.</p></header><div>{extras.map(([title, copy, price]) => <article key={title}><Plus /><h3>{title}</h3><p>{copy}</p><strong>{price}</strong></article>)}</div></div></section>
+    <section className="fin-extras"><div className="fin-shell"><header className="fin-heading fin-heading--split"><div><p className="fin-kicker"><span /> Tùy biến trải nghiệm</p><h2>Dịch vụ bổ sung.</h2></div><p>Linh hoạt nâng cấp các chi tiết sáng tạo để buổi chụp trở thành một trải nghiệm trọn vẹn hơn.</p></header><div>{extras.map(item => <article key={item.id}><Plus /><h3>{item.title}</h3><p>{item.description}</p><strong>{item.price_label||formatVND(item.price)}</strong></article>)}</div></div></section>
     <section className="fin-service-faq"><div className="fin-shell"><header><p className="fin-kicker"><span /> Giải đáp thắc mắc</p><h2>Những câu hỏi<br />thường gặp.</h2></header><div>{faqs.map(([question, answer], index) => <article className={open === index ? 'is-open' : ''} key={question}><button onClick={() => setOpen(open === index ? -1 : index)}><span>{question}</span><Plus /></button><p>{answer}</p></article>)}</div></div></section>
     <section className="fin-service-cta"><div className="fin-shell"><div><p className="fin-kicker"><span /> Direct booking</p><h2>Sẵn sàng cho kiệt tác của riêng bạn?</h2><p>Chia sẻ ý tưởng và thời gian mong muốn. FIN PHOTO sẽ tư vấn gói chụp phù hợp nhất.</p></div><Link href="/booking">Gửi yêu cầu giữ lịch <ArrowRight /></Link></div></section>
     <FinFooter />

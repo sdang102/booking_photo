@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
-import type { FaqItem, HomepageSection, PortfolioAlbum, ShootingLocation } from '@/types';
+import type { FaqItem, HomepageSection, PortfolioAlbum, ServiceAddon, ShootingLocation } from '@/types';
 import { PORTFOLIO_ALBUMS, SHOOTING_LOCATIONS } from '@/lib/data/mockData';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -12,7 +12,7 @@ export async function getPortfolioAlbums(publicOnly = true): Promise<PortfolioAl
   if (error || !data) return isDevelopment ? PORTFOLIO_ALBUMS : [];
   return data.map((album) => ({ id: album.id, slug: album.slug, title: album.title,
     category: album.categories?.slug ?? 'concept', location: album.location_text ?? album.locations?.name,
-    cover_url: album.cover_image ?? '', images: (album.portfolio_images ?? []).sort((a: { display_order:number }, b: { display_order:number }) => a.display_order-b.display_order).map((image: { id:string; image_url:string; alt_text?:string }) => ({ id:image.id,url:image.image_url,alt:image.alt_text ?? album.title,width:1200,height:800 })) })) as PortfolioAlbum[];
+    cover_url: album.cover_image ?? '', images: (album.portfolio_images ?? []).sort((a: { display_order:number }, b: { display_order:number }) => a.display_order-b.display_order).map((image: { id:string; image_url:string; alt_text?:string;width?:number;height?:number }) => ({ id:image.id,url:image.image_url,alt:image.alt_text ?? album.title,width:image.width||1200,height:image.height||800 })) })) as PortfolioAlbum[];
 }
 
 export async function getPortfolioAlbum(slug: string) {
@@ -47,4 +47,10 @@ export async function getCategories(): Promise<{slug:string;name:string}[]> {
   const {data,error}=await createClient().from('categories').select('slug,name').eq('is_active',true).order('display_order');
   if(error||!data)return[];
   return data.map(item=>({slug:String(item.slug),name:String(item.name)}));
+}
+
+export async function getServiceAddons(): Promise<ServiceAddon[]> {
+  const {data,error}=await createClient().from('service_addons').select('id,title,description,price,price_label').eq('is_active',true).order('display_order');
+  if(error||!data)return[];
+  return data.map(item=>({id:String(item.id),title:String(item.title),description:String(item.description??''),price:Number(item.price),price_label:String(item.price_label??'')}));
 }

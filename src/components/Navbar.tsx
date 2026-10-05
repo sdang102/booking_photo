@@ -161,13 +161,63 @@ export default function Navbar({
             {user ? <>
               <button type="button" onClick={() => { closeMenu(); openBookings(); }} tabIndex={menuOpen ? 0 : -1}><CalendarDays /> Lịch chụp của tôi{unreadBookingCount > 0 && <b>{unreadBookingCount}</b>}</button>
               <Link href="/profile" onClick={closeMenu} tabIndex={menuOpen ? 0 : -1}><Settings /> Quản lý tài khoản</Link>
-              <div onClick={closeMenu}><LogoutButton /><span>Đăng xuất</span></div>
+              <LogoutButton label="Đăng xuất" onClick={closeMenu} />
             </> : <button type="button" onClick={() => { closeMenu(); onOpenAuth(); }} tabIndex={menuOpen ? 0 : -1}><User /> Đăng nhập / Đăng ký</button>}
           </div>
           <small>{user ? `${user.full_name} · ${isAdmin ? 'Admin' : 'Khách hàng'}` : 'Đăng nhập để theo dõi lịch chụp của bạn'}</small>
         </div>
       </div>
 
+      <nav className="user-bottom-nav" aria-label="Điều hướng trang khách hàng trên di động">
+        <Link href="/" className={isActive('/') ? 'is-active' : ''}>
+          <span className="workspace-nav__icon"><House /></span>
+          <span>Trang chủ</span>
+        </Link>
+        <Link href="/services" className={isActive('/services') ? 'is-active' : ''}>
+          <span className="workspace-nav__icon"><PackageOpen /></span>
+          <span>Gói chụp</span>
+        </Link>
+        <Link href="/portfolio" className={isActive('/portfolio') ? 'is-active' : ''}>
+          <span className="workspace-nav__icon"><Images /></span>
+          <span>Bộ sưu tập</span>
+        </Link>
+        <Link href="/reviews" className={isActive('/reviews') ? 'is-active' : ''}>
+          <span className="workspace-nav__icon"><Star /></span>
+          <span>Đánh giá</span>
+        </Link>
+        <button
+          type="button"
+          onClick={() => {
+            if (user) {
+              openBookings();
+            } else {
+              onOpenBooking();
+            }
+          }}
+          className={pathname.startsWith('/booking') ? 'is-active' : ''}
+        >
+          <span className="workspace-nav__icon">
+            <CalendarDays />
+            {unreadBookingCount > 0 && (
+              <b className="booking-notification-pulse">
+                {unreadBookingCount > 9 ? '9+' : unreadBookingCount}
+              </b>
+            )}
+          </span>
+          <span>Lịch chụp</span>
+        </button>
+        {user ? (
+          <Link href="/profile" className={isActive('/profile') ? 'is-active' : ''}>
+            <span className="workspace-nav__icon"><User /></span>
+            <span>Tôi</span>
+          </Link>
+        ) : (
+          <button type="button" onClick={onOpenAuth}>
+            <span className="workspace-nav__icon"><User /></span>
+            <span>Tôi</span>
+          </button>
+        )}
+      </nav>
     </>
   );
 }

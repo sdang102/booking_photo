@@ -12,6 +12,7 @@ const NAV=[
   {href:'/admin',label:'Tổng quan',icon:LayoutDashboard,exact:true},
   {href:'/admin/homepage',label:'Trang chủ',icon:Home},
   {href:'/admin/services',label:'Gói chụp',icon:Package},
+  {href:'/admin/addons',label:'Dịch vụ bổ sung',icon:Package},
   {href:'/admin/categories',label:'Danh mục',icon:Tags},
   {href:'/admin/portfolio',label:'Portfolio',icon:ImageIcon},
   {href:'/admin/albums',label:'Albums',icon:ImageIcon},

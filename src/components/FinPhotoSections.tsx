@@ -7,7 +7,7 @@ import { PORTFOLIO_ALBUMS } from '@/lib/data/mockData';
 import type { PortfolioAlbum, Service } from '@/types';
 import { formatVND } from './ServiceCard';
 
-const craft = [
+const defaultCraft = [
   { title: 'Chân dung nghệ thuật', copy: 'Ánh sáng có chủ đích, tôn lên khí chất và câu chuyện rất riêng của bạn.', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=88' },
   { title: 'Couple & Pre-wedding', copy: 'Những khoảnh khắc tự nhiên được kể lại bằng ngôn ngữ điện ảnh tinh tế.', image: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=88' },
   { title: 'Lookbook & Editorial', copy: 'Hình ảnh thời trang giàu cá tính, được xây dựng trọn vẹn từ concept đến hậu kỳ.', image: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=88' },
@@ -23,31 +23,30 @@ const process = [
 
 export function FinHero({ onBook }: { onBook: () => void }) {
   return <section className="fin-hero">
-    <Image src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=2000&q=90" alt="Khoảnh khắc cưới giàu cảm xúc qua ống kính FIN PHOTO" fill preload sizes="100vw" className="fin-hero__image" />
+    <Image src="/fin-hero-bg.jpg" alt="Khoảnh khắc nghệ thuật qua ống kính FIN PHOTO" fill priority sizes="100vw" className="fin-hero__image" />
     <div className="fin-hero__veil" />
     <div className="fin-shell fin-hero__content">
-      <p className="fin-kicker"><span /> FIN PHOTO · Saigon</p>
-      <h1>Bắt trọn khoảnh khắc<br /><em>bất tận</em> trong từng<br />khung hình nghệ thuật.</h1>
-      <p className="fin-hero__lead">Chúng tôi biến cảm xúc chân thật thành những thước ảnh thanh lịch, có chiều sâu và còn nguyên giá trị qua năm tháng.</p>
+      <p className="fin-kicker"><span /> FIN PHOTO · SGN</p>
+      <h1>Những khoảnh khắc <em>đẹp nhất</em><br />đôi khi chỉ cần được ghi lại<br />một cách thật <em>tinh tế.</em></h1>
       <div className="fin-actions">
         <button type="button" className="fin-button fin-button--gold" onClick={onBook}>Khám phá gói chụp <ArrowRight /></button>
         <Link className="fin-button fin-button--ghost" href="/about">Xem portfolio <MoveUpRight /></Link>
       </div>
     </div>
     <div className="fin-shell fin-stats">
-      <div><strong>08+</strong><span>Năm theo đuổi ánh sáng</span></div>
-      <div><strong>500+</strong><span>Câu chuyện đã lưu giữ</span></div>
+      <div><strong>02+</strong><span>Năm theo đuổi ánh sáng</span></div>
+      <div><strong>100+</strong><span>Câu chuyện đã lưu giữ</span></div>
       <div><strong>24h</strong><span>Phản hồi yêu cầu tư vấn</span></div>
       <div><strong>100%</strong><span>Trải nghiệm được cá nhân hóa</span></div>
     </div>
   </section>;
 }
 
-export function FinCraft() {
+export function FinCraft({items=defaultCraft}:{items?:Array<{title:string;copy:string;image:string}>}) {
   return <section className="fin-section fin-craft">
     <div className="fin-shell">
       <header className="fin-heading fin-heading--split"><div><p className="fin-kicker"><span /> Chuyên môn của FIN PHOTO</p><h2>Thế giới hình ảnh<br />mang dấu ấn riêng.</h2></div><p>Mỗi thể loại là một cách kể chuyện khác nhau, nhưng luôn gặp nhau ở ánh sáng đẹp, cảm xúc thật và sự chỉn chu.</p></header>
-      <div className="fin-craft__grid">{craft.map((item, index) => <article key={item.title}>
+      <div className="fin-craft__grid">{items.map((item, index) => <article key={item.title}>
         <div className="fin-craft__media"><Image src={item.image} alt={item.title} fill sizes="(max-width: 720px) 100vw, 25vw" /></div>
         <span>0{index + 1}</span><h3>{item.title}</h3><p>{item.copy}</p><Link href="/portfolio">Xem tác phẩm <ArrowRight /></Link>
       </article>)}</div>

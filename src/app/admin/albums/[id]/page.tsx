@@ -7,8 +7,10 @@ import { ImagePlus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { imageFileToBase64 } from '@/lib/imageBase64';
 
-type ImageRow={id:string;image_url:string;alt_text:string|null;caption:string|null;display_order:number};
-type PendingImage={key:string;name:string;data:string};
+type ImageRow={id:string;image_url:string;alt_text:string|null;caption:string|null;display_order:number;width:number|null;height:number|null};
+type PendingImage={key:string;name:string;data:string;width:number;height:number};
+
+function readImageSize(src:string){return new Promise<{width:number;height:number}>((resolve,reject)=>{const image=new Image();image.onload=()=>resolve({width:image.naturalWidth,height:image.naturalHeight});image.onerror=reject;image.src=src})}
 
 export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   const{id}=use(params);
@@ -18,7 +20,7 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   const load=useCallback(async()=>{
     const client=createClient();
     const[imageResult,albumResult]=await Promise.all([
-      client.from('portfolio_images').select('id,image_url,alt_text,caption,display_order').eq('album_id',id).order('display_order'),
+      client.from('portfolio_images').select('id,image_url,alt_text,caption,display_order,width,height').eq('album_id',id).order('display_order'),
       client.from('portfolio_albums').select('title').eq('id',id).maybeSingle(),
     ]);
     if(imageResult.error)setMsg(imageResult.error.message);else setImages(imageResult.data??[]);
@@ -31,7 +33,7 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
     const selected=Array.from(files??[]);if(!selected.length)return;
     setBusy(true);setMsg('');const added:PendingImage[]=[];const failed:string[]=[];
     for(const file of selected){
-      try{added.push({key:`${file.name}-${file.lastModified}-${Math.random()}`,name:file.name.replace(/\.[^.]+$/,''),data:await imageFileToBase64(file)})}
+      try{const data=await imageFileToBase64(file);const size=await readImageSize(data);added.push({key:`${file.name}-${file.lastModified}-${Math.random()}`,name:file.name.replace(/\.[^.]+$/,''),data,...size})}
       catch(error){failed.push(`${file.name}: ${error instanceof Error?error.message:'Không thể xử lý ảnh.'}`)}
     }
     setPending(current=>[...current,...added]);setBusy(false);
@@ -43,7 +45,7 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
     setBusy(true);setMsg('');const client=createClient();const failed:PendingImage[]=[];let added=0;
     for(let index=0;index<pending.length;index++){
       const item=pending[index];
-      const{error}=await client.from('portfolio_images').insert({album_id:id,image_url:item.data,alt_text:item.name,display_order:images.length+index});
+      const{error}=await client.from('portfolio_images').insert({album_id:id,image_url:item.data,alt_text:item.name,width:item.width,height:item.height,display_order:images.length+index});
       if(error)failed.push(item);else added++;
     }
     setPending(failed);setBusy(false);await load();
@@ -64,8 +66,8 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   const replace=async(row:ImageRow,file?:File)=>{
     if(!file)return;setReplacingId(row.id);setMsg('');
     try{
-      const imageUrl=await imageFileToBase64(file);const{error}=await createClient().from('portfolio_images').update({image_url:imageUrl}).eq('id',row.id);
-      if(error)setMsg(error.message);else{setImages(current=>current.map(item=>item.id===row.id?{...item,image_url:imageUrl}:item));setMsg('Đã thay ảnh mới.')}
+      const imageUrl=await imageFileToBase64(file);const size=await readImageSize(imageUrl);const{error}=await createClient().from('portfolio_images').update({image_url:imageUrl,...size}).eq('id',row.id);
+      if(error)setMsg(error.message);else{setImages(current=>current.map(item=>item.id===row.id?{...item,image_url:imageUrl,...size}:item));setMsg('Đã thay ảnh mới.')}
     }catch(error){setMsg(error instanceof Error?error.message:'Không thể thay ảnh.')}finally{setReplacingId('')}
   };
 

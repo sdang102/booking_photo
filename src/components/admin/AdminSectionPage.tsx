@@ -7,7 +7,7 @@ import { getAllBookings } from '@/lib/services/bookingService';
 import type { BookingPhotoRecord } from '@/types';
 import { formatVND } from '@/components/ServiceCard';
 
-const titles:Record<string,string>={homepage:'Trang chủ',services:'Gói chụp',categories:'Danh mục',portfolio:'Portfolio',albums:'Albums',locations:'Địa điểm',faq:'FAQ',media:'Media',reviews:'Đánh giá',revenue:'Doanh thu',settings:'Cài đặt'};
+const titles:Record<string,string>={homepage:'Nội dung trang chủ',services:'Gói chụp',addons:'Dịch vụ bổ sung',categories:'Bộ lọc bộ sưu tập',portfolio:'Tác phẩm nổi bật',albums:'Album ảnh',locations:'Địa điểm',faq:'FAQ',media:'Media',reviews:'Đánh giá',revenue:'Doanh thu',settings:'Cài đặt'};
 
 export default function AdminSectionPage({params}:{params:Promise<{section:string}>}){
   const{section}=use(params);const[bookings,setBookings]=useState<BookingPhotoRecord[]>([]);
@@ -17,7 +17,7 @@ export default function AdminSectionPage({params}:{params:Promise<{section:strin
 }
 
 function SectionContent({section,bookings,revenue}:{section:string;bookings:BookingPhotoRecord[];revenue:number}){
-  if(['homepage','services','categories','portfolio','albums','locations','faq','settings'].includes(section))return <AdminCrudPanel section={section}/>;
+  if(['homepage','services','addons','categories','portfolio','albums','locations','faq','settings'].includes(section))return <AdminCrudPanel section={section}/>;
   if(section==='media')return <Link href="/admin/media" className="sky-button inline-flex rounded-xl px-5 py-3">Mở thư viện Media</Link>;
   if(section==='reviews')return <Link href="/admin/reviews" className="sky-button inline-flex rounded-xl px-5 py-3">Mở quản lý đánh giá</Link>;
   if(section==='revenue')return <><div className="grid gap-4 sm:grid-cols-3"><Metric label="Tổng giá trị active" value={formatVND(revenue)}/><Metric label="Doanh thu hoàn tất" value={formatVND(bookings.filter(x=>x.status==='completed').reduce((n,x)=>n+x.total_price,0))}/><Metric label="Thanh toán tại nơi chụp" value={formatVND(bookings.filter(x=>!['cancelled','completed'].includes(x.status)).reduce((n,x)=>n+x.total_price,0))}/></div><div className="mt-6"><Table headers={['Thời gian','Dịch vụ','Tổng','Hình thức','Trạng thái']}>{bookings.filter(x=>x.status!=='cancelled').map(x=><tr key={x.id}><Td>{x.booking_date}</Td><Td>{x.service_title}</Td><Td>{formatVND(x.total_price)}</Td><Td>Tại nơi chụp</Td><Td>{x.payment_status||'unpaid'}</Td></tr>)}</Table></div></>;

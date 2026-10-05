@@ -4,7 +4,7 @@ import { use, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, MapPin } from 'lucide-react';
-import type { PortfolioAlbum } from '@/types';
+import type { PortfolioAlbum, PortfolioImage } from '@/types';
 import { getPortfolioAlbum } from '@/lib/services/contentService';
 import PublicSiteHeader from '@/components/PublicSiteHeader';
 import PublicMotionRoot from '@/components/motion/PublicMotionRoot';
@@ -49,12 +49,7 @@ export default function PortfolioAlbumPage({ params }: { params: Promise<{ slug:
 
         <section className="album-story" data-cinematic-section>
           <div className="album-gallery">
-            {album.images.map((image, index) => (
-              <figure key={image.id} className={`album-frame album-frame--${index % 5}`} data-section-depth={index % 2 === 0 ? '0.35' : '0.65'}>
-                <Image src={image.url} alt={image.alt} width={image.width} height={image.height} sizes="(max-width:699px) 100vw,70vw" className="h-auto w-full" />
-                <figcaption>{String(index + 1).padStart(2, '0')} / {String(album.images.length).padStart(2, '0')}</figcaption>
-              </figure>
-            ))}
+            {album.images.map((image, index) => <AlbumFrame key={image.id} image={image} index={index} total={album.images.length} />)}
           </div>
           <div className="album-cta" data-reveal>
             <h2>Bạn muốn một bộ ảnh mang câu chuyện riêng?</h2>
@@ -64,4 +59,12 @@ export default function PortfolioAlbumPage({ params }: { params: Promise<{ slug:
       </main>
     </PublicMotionRoot>
   );
+}
+
+function AlbumFrame({image,index,total}:{image:PortfolioImage;index:number;total:number}){
+  const[orientation,setOrientation]=useState(image.height>image.width?'portrait':'landscape');
+  return <figure className={`album-frame album-frame--${orientation}`} data-section-depth={index%2===0?'0.35':'0.65'}>
+    <Image src={image.url} alt={image.alt} fill sizes="(max-width:699px) 100vw,70vw" onLoad={event=>setOrientation(event.currentTarget.naturalHeight>event.currentTarget.naturalWidth?'portrait':'landscape')}/>
+    <figcaption>{String(index+1).padStart(2,'0')} / {String(total).padStart(2,'0')}</figcaption>
+  </figure>
 }

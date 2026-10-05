@@ -159,6 +159,14 @@ export interface AddonOption {
   description: string;
 }
 
+export interface ServiceAddon {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  price_label: string;
+}
+
 export interface CustomerSummary {
   id: string;
   name: string;
