@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 import type { FaqItem, HomepageSection, PortfolioAlbum, ServiceAddon, ShootingLocation } from '@/types';
-import { PORTFOLIO_ALBUMS, SHOOTING_LOCATIONS } from '@/lib/data/mockData';
+import { SHOOTING_LOCATIONS } from '@/lib/data/mockData';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
@@ -9,10 +9,10 @@ export async function getPortfolioAlbums(publicOnly = true): Promise<PortfolioAl
   let query = supabase.from('portfolio_albums').select('*, categories(slug), locations(name), portfolio_images(*)').order('display_order');
   if (publicOnly) query = query.eq('is_public', true);
   const { data, error } = await query;
-  if (error || !data) return isDevelopment ? PORTFOLIO_ALBUMS : [];
+  if (error || !data) return [];
   return data.map((album) => ({ id: album.id, slug: album.slug, title: album.title,
     category: album.categories?.slug ?? 'concept', location: album.location_text ?? album.locations?.name,
-    cover_url: album.cover_image ?? '', images: (album.portfolio_images ?? []).sort((a: { display_order:number }, b: { display_order:number }) => a.display_order-b.display_order).map((image: { id:string; image_url:string; alt_text?:string;width?:number;height?:number }) => ({ id:image.id,url:image.image_url,alt:image.alt_text ?? album.title,width:image.width||1200,height:image.height||800 })) })) as PortfolioAlbum[];
+    cover_url: album.cover_image ?? '', mobile_cover_url:album.cover_image_mobile??undefined, images: (album.portfolio_images ?? []).sort((a: { display_order:number }, b: { display_order:number }) => a.display_order-b.display_order).map((image: { id:string; image_url:string; alt_text?:string;width?:number;height?:number }) => ({ id:image.id,url:image.image_url,alt:image.alt_text ?? album.title,width:image.width||1200,height:image.height||800 })) })) as PortfolioAlbum[];
 }
 
 export async function getPortfolioAlbum(slug: string) {

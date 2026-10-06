@@ -7,10 +7,31 @@ import { ImagePlus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { imageFileToBase64 } from '@/lib/imageBase64';
 
-type ImageRow={id:string;image_url:string;alt_text:string|null;caption:string|null;display_order:number;width:number|null;height:number|null};
+type ImageRow={id:string;image_url:string;storage_path:string|null;alt_text:string|null;caption:string|null;display_order:number};
 type PendingImage={key:string;name:string;data:string;width:number;height:number};
 
 function readImageSize(src:string){return new Promise<{width:number;height:number}>((resolve,reject)=>{const image=new Image();image.onload=()=>resolve({width:image.naturalWidth,height:image.naturalHeight});image.onerror=reject;image.src=src})}
+function safeFileName(value:string){return value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase()||'image'}
+async function uploadPortfolioImage(albumId:string,item:PendingImage){
+  const client=createClient();
+  const path=`albums/${albumId}/${crypto.randomUUID()}-${safeFileName(item.name)}.webp`;
+  const blob=await(await fetch(item.data)).blob();
+  const{error}=await client.storage.from('portfolio').upload(path,blob,{contentType:'image/webp',cacheControl:'31536000',upsert:false});
+  if(error){
+    const storageError=error as {code?:string;statusCode?:string|number};
+    if(storageError.code==='NoSuchBucket'||Number(storageError.statusCode)===404)return{path:null,url:item.data};
+    throw error;
+  }
+  return{path,url:client.storage.from('portfolio').getPublicUrl(path).data.publicUrl};
+}
+function errorMessage(error:unknown){
+  if(error instanceof Error)return error.message;
+  if(error&&typeof error==='object'){
+    const value=error as {message?:unknown;error?:unknown;code?:unknown};
+    return [value.message,value.error,value.code].filter(item=>typeof item==='string').join(' · ')||JSON.stringify(error);
+  }
+  return String(error);
+}
 
 export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   const{id}=use(params);
@@ -20,7 +41,7 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   const load=useCallback(async()=>{
     const client=createClient();
     const[imageResult,albumResult]=await Promise.all([
-      client.from('portfolio_images').select('id,image_url,alt_text,caption,display_order,width,height').eq('album_id',id).order('display_order'),
+      client.from('portfolio_images').select('id,image_url,storage_path,alt_text,caption,display_order').eq('album_id',id).order('display_order'),
       client.from('portfolio_albums').select('title').eq('id',id).maybeSingle(),
     ]);
     if(imageResult.error)setMsg(imageResult.error.message);else setImages(imageResult.data??[]);
@@ -42,20 +63,24 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
 
   const add=async(event:FormEvent)=>{
     event.preventDefault();if(!pending.length)return setMsg('Vui lòng chọn ít nhất một ảnh từ máy.');
-    setBusy(true);setMsg('');const client=createClient();const failed:PendingImage[]=[];let added=0;
-    for(let index=0;index<pending.length;index++){
-      const item=pending[index];
-      const{error}=await client.from('portfolio_images').insert({album_id:id,image_url:item.data,alt_text:item.name,width:item.width,height:item.height,display_order:images.length+index});
-      if(error)failed.push(item);else added++;
-    }
-    setPending(failed);setBusy(false);await load();
-    setMsg(failed.length?`Đã thêm ${added} ảnh; ${failed.length} ảnh chưa lưu được. Bạn có thể thử lại.`:`Đã thêm ${added} ảnh vào album.`);
+    setBusy(true);setMsg('');const client=createClient();const failed:PendingImage[]=[];const errors:string[]=[];let added=0;
+    try{
+      const results=await Promise.allSettled(pending.map(async(item,index)=>{
+        const uploaded=await uploadPortfolioImage(id,item);
+        const{error}=await client.from('portfolio_images').insert({album_id:id,image_url:uploaded.url,storage_path:uploaded.path,alt_text:item.name,display_order:images.length+index});
+        if(error){if(uploaded.path)await client.storage.from('portfolio').remove([uploaded.path]);throw error}
+        return item;
+      }));
+      results.forEach((result,index)=>{if(result.status==='fulfilled')added++;else{failed.push(pending[index]);errors.push(errorMessage(result.reason))}});
+      setPending(failed);await load();
+      setMsg(failed.length?`Đã thêm ${added} ảnh; ${failed.length} ảnh chưa lưu được: ${errors[0]??'Vui lòng thử lại.'}`:`Đã thêm ${added} ảnh vào album.`);
+    }finally{setBusy(false)}
   };
 
   const remove=async(row:ImageRow)=>{
     if(!confirm(`Xóa ảnh “${row.alt_text||'không có tiêu đề'}” khỏi album?`))return;
-    setDeletingId(row.id);setMsg('');const{error}=await createClient().from('portfolio_images').delete().eq('id',row.id);setDeletingId('');
-    if(error)setMsg(error.message);else{setImages(current=>current.filter(item=>item.id!==row.id));setMsg('Đã xóa ảnh khỏi album.')}
+    setDeletingId(row.id);setMsg('');const client=createClient();const{error}=await client.from('portfolio_images').delete().eq('id',row.id);setDeletingId('');
+    if(error)setMsg(error.message);else{if(row.storage_path)await client.storage.from('portfolio').remove([row.storage_path]);setImages(current=>current.filter(item=>item.id!==row.id));setMsg('Đã xóa ảnh khỏi album.')}
   };
 
   const update=async(row:ImageRow)=>{
@@ -66,8 +91,10 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   const replace=async(row:ImageRow,file?:File)=>{
     if(!file)return;setReplacingId(row.id);setMsg('');
     try{
-      const imageUrl=await imageFileToBase64(file);const size=await readImageSize(imageUrl);const{error}=await createClient().from('portfolio_images').update({image_url:imageUrl,...size}).eq('id',row.id);
-      if(error)setMsg(error.message);else{setImages(current=>current.map(item=>item.id===row.id?{...item,image_url:imageUrl,...size}:item));setMsg('Đã thay ảnh mới.')}
+      const data=await imageFileToBase64(file);const size=await readImageSize(data);const client=createClient();
+      const uploaded=await uploadPortfolioImage(id,{key:'replacement',name:file.name.replace(/\.[^.]+$/,''),data,...size});
+      const{error}=await client.from('portfolio_images').update({image_url:uploaded.url,storage_path:uploaded.path}).eq('id',row.id);
+      if(error){if(uploaded.path)await client.storage.from('portfolio').remove([uploaded.path]);setMsg(error.message)}else{if(row.storage_path)await client.storage.from('portfolio').remove([row.storage_path]);setImages(current=>current.map(item=>item.id===row.id?{...item,image_url:uploaded.url,storage_path:uploaded.path}:item));setMsg('Đã thay ảnh mới.')}
     }catch(error){setMsg(error instanceof Error?error.message:'Không thể thay ảnh.')}finally{setReplacingId('')}
   };
 

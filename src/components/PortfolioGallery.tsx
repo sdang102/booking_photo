@@ -9,6 +9,7 @@ import gsap from 'gsap';
 import { getPortfolioAlbums } from '@/lib/services/contentService';
 import { PORTFOLIO_ALBUMS } from '@/lib/data/mockData';
 import type { PortfolioAlbum, PortfolioCategory } from '@/types';
+import ResponsiveAlbumImage from './ResponsiveAlbumImage';
 
 const FILTERS: Array<{ id: 'all' | PortfolioCategory; label: string }> = [
   { id: 'all', label: 'Tất cả' }, { id: 'couple', label: 'Couple' },
@@ -85,7 +86,7 @@ export default function PortfolioGallery() {
               aria-label={`Mở album ${album.title}`}
             >
               <span>{String(index + 1).padStart(2, '0')}</span>
-              <div data-shared-media><Image src={album.cover_url} alt={album.title} fill sizes="(max-width: 899px) 58vw, 30vw" className="object-cover" /></div>
+              <div data-shared-media><ResponsiveAlbumImage album={album}/></div>
               <strong>{album.title}</strong>
               <small>Mở album <ArrowUpRight /></small>
             </Link>
@@ -118,7 +119,7 @@ export default function PortfolioGallery() {
             <Link key={album.id} href={`/portfolio/${album.slug}`} onClick={(event) => beginTransition(event, album)} className={`portfolio-tile portfolio-tile--${index % 6}`} aria-label={`Mở album ${album.title}`}>
               <article className="portfolio-card">
                 <div className="portfolio-card-media" data-shared-media>
-                  <Image src={album.cover_url} alt={album.title} fill sizes="(max-width: 699px) 92vw, (max-width: 1100px) 55vw, 42vw" className="object-cover" />
+                  <ResponsiveAlbumImage album={album}/>
                 </div>
                 <div className="portfolio-card-copy">
                   <span>{String(index + 1).padStart(2, '0')} / {album.category.replace('-', ' ')}</span>
@@ -141,7 +142,7 @@ export default function PortfolioGallery() {
           {[...albums, ...albums].slice(0, 10).map((album, index) => (
             <Link key={`${album.id}-${index}`} href={`/portfolio/${album.slug}`} onClick={(event) => beginTransition(event, album)} className="contact-frame" aria-label={`Mở album ${album.title}`}>
               <small>{String(index + 1).padStart(2, '0')}A</small>
-              <div data-shared-media><Image src={album.cover_url} alt={album.title} fill sizes="(max-width: 700px) 62vw, 25vw" className="object-cover" /></div>
+              <div data-shared-media><ResponsiveAlbumImage album={album}/></div>
               <span>{album.title}</span>
             </Link>
           ))}

@@ -31,6 +31,7 @@ export interface PortfolioAlbum {
   category: PortfolioCategory;
   location?: string;
   cover_url: string;
+  mobile_cover_url?: string;
   images: PortfolioImage[];
 }
 

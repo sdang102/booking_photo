@@ -2,10 +2,11 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, Camera, Check, MoveUpRight, Sparkles } from 'lucide-react';
+import { ArrowRight, Camera, Check, MoveUpRight, Music2, Phone, Sparkles } from 'lucide-react';
 import { PORTFOLIO_ALBUMS } from '@/lib/data/mockData';
 import type { PortfolioAlbum, Service } from '@/types';
 import { formatVND } from './ServiceCard';
+import ResponsiveAlbumImage from './ResponsiveAlbumImage';
 
 const defaultCraft = [
   { title: 'Chân dung nghệ thuật', copy: 'Ánh sáng có chủ đích, tôn lên khí chất và câu chuyện rất riêng của bạn.', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=88' },
@@ -59,7 +60,7 @@ export function FinSelectedWorks({ albums = PORTFOLIO_ALBUMS }: { albums?: Portf
   return <section id="collection" className="fin-section fin-works"><div className="fin-shell">
     <header className="fin-heading fin-heading--split"><div><p className="fin-kicker"><span /> Selected works</p><h2>Tác phẩm tiêu biểu<br />được tuyển chọn.</h2></div><Link className="fin-text-link" href="/portfolio">Xem toàn bộ bộ sưu tập <ArrowRight /></Link></header>
     <div className="fin-works__grid">{works.map((album, index) => <Link href={`/portfolio/${album.slug}`} key={album.id} className={`fin-work fin-work--${index + 1}`}>
-      <div><Image src={album.cover_url} alt={album.title} fill sizes="(max-width: 720px) 100vw, 50vw" /></div>
+      <div><ResponsiveAlbumImage album={album}/></div>
       <span>{album.category.replace('-', ' ')}</span><h3>{album.title}</h3><p>{album.location || 'Sài Gòn'} · Project 0{index + 1}</p>
     </Link>)}</div>
   </div></section>;
@@ -98,5 +99,11 @@ export function FinClosing({ onBook }: { onBook: () => void }) {
 }
 
 export function FinFooter() {
-  return <footer className="fin-footer"><div className="fin-shell"><div className="fin-footer__brand"><Camera /><div><strong>FIN PHOTO</strong><span>Editorial photography</span></div></div><p>Không gian hình ảnh dành cho những câu chuyện chân thật, thanh lịch và có chiều sâu.</p><nav><Link href="/">Trang chủ</Link><Link href="/portfolio">Bộ sưu tập</Link><Link href="/services">Gói chụp</Link><Link href="/about">Portfolio</Link><Link href="/reviews">Đánh giá</Link></nav><div className="fin-footer__bottom"><span>© 2026 FIN PHOTO. All rights reserved.</span><span>Made with light in Saigon <Sparkles /></span></div></div></footer>;
+  return <footer className="fin-footer"><div className="fin-shell"><div className="fin-footer__brand"><Camera /><div><strong>FIN PHOTO</strong><span>Editorial photography</span></div></div><p>Không gian hình ảnh dành cho những câu chuyện chân thật, thanh lịch và có chiều sâu.</p><nav><Link href="/">Trang chủ</Link><Link href="/portfolio">Bộ sưu tập</Link><Link href="/services">Gói chụp</Link><Link href="/about">Portfolio</Link><Link href="/reviews">Đánh giá</Link></nav><div className="fin-footer__contact" aria-label="Thông tin liên hệ">
+    <a href="https://www.tiktok.com/@chonphoto.sgn" target="_blank" rel="noreferrer" aria-label="TikTok Chọn Photo Sài Gòn" title="TikTok"><Music2/></a>
+    <a href="https://www.instagram.com/finphoto.sgn?stkn=MWl4anFndmN1cXF1OA%3D%3D&utm_source=qr" target="_blank" rel="noreferrer" aria-label="Instagram FIN PHOTO" title="Instagram"><InstagramMark/></a>
+    <a href="tel:+84392152816" aria-label="Gọi số 0392 152 816" title="0392 152 816"><Phone/></a>
+  </div><div className="fin-footer__bottom"><span>© 2026 FIN PHOTO. All rights reserved.</span><span>Made with light in Saigon <Sparkles /></span></div></div></footer>;
 }
+
+function InstagramMark(){return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>}

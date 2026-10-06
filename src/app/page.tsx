@@ -36,7 +36,7 @@ export default function HomePage() {
     <PublicSiteHeader />
     <FinHero onBook={() => router.push('/services')} />
     <FinCraft items={craft.length ? craft : undefined} />
-    <FinSelectedWorks albums={albums.length ? albums : undefined} />
+    <FinSelectedWorks albums={albums} />
     <FinProcess />
     <FinClosing onBook={() => router.push('/booking')} />
     <FinFooter />
