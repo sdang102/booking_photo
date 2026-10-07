@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowDownRight, ArrowUpRight, MapPin } from 'lucide-react';
 import gsap from 'gsap';
-import { getPortfolioAlbums } from '@/lib/services/contentService';
+import { getAlbumCovers } from '@/lib/services/contentService';
 import { PORTFOLIO_ALBUMS } from '@/lib/data/mockData';
 import type { PortfolioAlbum, PortfolioCategory } from '@/types';
 import ResponsiveAlbumImage from './ResponsiveAlbumImage';
@@ -31,7 +31,7 @@ export default function PortfolioGallery() {
   const transitionShade = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getPortfolioAlbums(true).then((items) => { if (items.length) setAlbums(items); });
+    getAlbumCovers().then((items) => { if (items.length) setAlbums(items); });
   }, []);
 
   const filtered = filter === 'all' ? albums : albums.filter((album) => album.category === filter);

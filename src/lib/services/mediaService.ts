@@ -5,7 +5,7 @@ export type MediaCategory='homepage'|'portfolio'|'services'|'locations'|'avatar'
 export interface MediaRecord{id:string;bucket:string;storage_path:string;public_url?:string;filename:string;mime_type?:string;size_bytes?:number;category:MediaCategory;created_at:string}
 
 export async function listMedia(search=''){
-  let query=createClient().from('media').select('*').order('created_at',{ascending:false}).limit(100);
+  let query=createClient().from('media').select('id,bucket,storage_path,public_url,filename,mime_type,size_bytes,category,created_at').order('created_at',{ascending:false}).limit(100);
   if(search)query=query.ilike('filename',`%${search}%`);
   const{data,error}=await query;if(error)throw error;
   return(data??[])as MediaRecord[];
@@ -19,7 +19,7 @@ export async function uploadMedia(files:File[],category:MediaCategory){
       bucket:'database',storage_path:`base64/${crypto.randomUUID()}`,public_url:base64,
       filename:file.name,mime_type:'image/webp',size_bytes:base64ByteSize(base64),category,
       metadata:{source_type:file.type,source_size:file.size,encoding:'base64'},
-    }).select().single();
+    }).select('id,bucket,storage_path,public_url,filename,mime_type,size_bytes,category,created_at').single();
     if(error)throw error;
     results.push(data as MediaRecord);
   }

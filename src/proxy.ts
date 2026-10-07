@@ -26,11 +26,19 @@ export async function proxy(request: NextRequest) {
     return redirect;
   };
   if (!user) return redirectWithRefreshedCookies(new URL(`/login?next=${encodeURIComponent(request.nextUrl.pathname)}`, request.url));
-  const [{ data: isAdmin }, { data: isPhotographer }] = await Promise.all([
-    supabase.rpc('has_role', { required_role: 'admin' }),
-    supabase.rpc('has_role', { required_role: 'photographer' }),
-  ]);
-  const databaseRoles = [isAdmin && 'admin', isPhotographer && 'photographer'].filter(Boolean);
+  const { data: contextData, error: contextError } = await supabase.rpc('get_current_user_context');
+  const contextRow = Array.isArray(contextData) ? contextData[0] : contextData;
+  let databaseRoles: unknown[] = [];
+  if (!contextError && contextRow) {
+    databaseRoles = normalizeRoles((contextRow as Record<string, unknown>).roles);
+  } else {
+    // Backward-compatible while the Phase 1 migration is waiting to be applied.
+    const [{ data: isAdmin }, { data: isPhotographer }] = await Promise.all([
+      supabase.rpc('has_role', { required_role: 'admin' }),
+      supabase.rpc('has_role', { required_role: 'photographer' }),
+    ]);
+    databaseRoles = [isAdmin && 'admin', isPhotographer && 'photographer'].filter(Boolean);
+  }
   const roles = databaseRoles.length
     ? normalizeRoles(databaseRoles)
     : normalizeRoles(user.app_metadata.roles ?? user.app_metadata.role ?? user.user_metadata.roles ?? user.user_metadata.role);

@@ -30,6 +30,7 @@ export interface PortfolioAlbum {
   title: string;
   category: PortfolioCategory;
   location?: string;
+  shoot_date?: string;
   cover_url: string;
   mobile_cover_url?: string;
   images: PortfolioImage[];

@@ -1,30 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { ArrowRight, CalendarDays, MapPin } from 'lucide-react';
-import type { BookingPhotoRecord } from '@/types';
-import { getAllBookings } from '@/lib/services/bookingService';
 import BookingStatusBadge from '@/components/photographer/BookingStatusBadge';
 import { todayKey } from '@/lib/bookingAvailability';
+import { usePhotographerBookings } from '@/lib/context/PhotographerBookingsContext';
 
 export default function PhotographerHome() {
-  const [items, setItems] = useState<BookingPhotoRecord[]>([]);
+  const { items: allItems } = usePhotographerBookings();
   const today = todayKey();
-
-  useEffect(() => {
-    let active = true;
-    const load = () => getAllBookings().then((all) => {
-      if (!active) return;
-      setItems(all
-        .filter((item) => item.booking_date >= today && item.status !== 'cancelled')
-        .sort((first, second) => `${first.booking_date}${first.booking_time}`.localeCompare(`${second.booking_date}${second.booking_time}`)));
-    });
-    void load();
-    window.addEventListener('focus', load);
-    const interval = window.setInterval(load, 15000);
-    return () => { active = false; window.removeEventListener('focus', load); window.clearInterval(interval); };
-  }, [today]);
+  const items = useMemo(() => allItems
+    .filter((item) => item.booking_date >= today && item.status !== 'cancelled')
+    .sort((first, second) => `${first.booking_date}${first.booking_time}`.localeCompare(`${second.booking_date}${second.booking_time}`)), [allItems, today]);
 
   const pendingCount = items.filter((item) => item.status === 'pending').length;
 

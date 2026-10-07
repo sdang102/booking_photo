@@ -2,9 +2,10 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { AlertTriangle, CalendarDays, Check, CloudSun, Plus, Sun, Sunset, Trash2 } from 'lucide-react';
-import type { AvailabilityBlock, BookingPhotoRecord, BookingStatus } from '@/types';
-import { createAvailabilityBlock, getAllBookings, getPhotographerAvailabilityBlocks, removeAvailabilityBlock } from '@/lib/services/bookingService';
+import type { AvailabilityBlock, BookingStatus } from '@/types';
+import { createAvailabilityBlocks, getPhotographerAvailabilityBlocks, removeAvailabilityBlock } from '@/lib/services/bookingService';
 import { BOOKING_SHIFTS, rangesOverlap, todayKey } from '@/lib/bookingAvailability';
+import { usePhotographerBookings } from '@/lib/context/PhotographerBookingsContext';
 
 type ShiftId=(typeof BOOKING_SHIFTS)[number]['id'];
 
@@ -16,7 +17,7 @@ const SHIFT_META:Record<ShiftId,{title:string;description:string;icon:typeof Sun
 const CONFIRMED_STATUSES=new Set<BookingStatus>(['confirmed','checked_in','shooting','completed']);
 
 export default function AvailabilityManager(){
-  const[items,setItems]=useState<BookingPhotoRecord[]>([]);
+  const{items}=usePhotographerBookings();
   const[blocks,setBlocks]=useState<AvailabilityBlock[]>([]);
   const[open,setOpen]=useState(true);
   const[date,setDate]=useState('');
@@ -29,9 +30,7 @@ export default function AvailabilityManager(){
   const[removingDay,setRemovingDay]=useState('');
 
   useEffect(()=>{
-    Promise.all([getAllBookings(),getPhotographerAvailabilityBlocks()]).then(([bookingItems,availability])=>{
-      setItems(bookingItems);setBlocks(availability);
-    });
+    getPhotographerAvailabilityBlocks().then(setBlocks);
   },[]);
 
   const groupedBlocks=Object.groupBy([...blocks].sort((a,b)=>`${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`)),(block)=>block.date);
@@ -69,10 +68,11 @@ export default function AvailabilityManager(){
     if(!window.confirm(`Bạn có chắc muốn chặn ${description}?\n\nKhách hàng sẽ không thể đặt các ca này.`))return;
     setBusy(true);setMessage(null);
     try{
-      const created=await Promise.all(missing.map((shift)=>{
+      const inputs=missing.map((shift)=>{
         const[start_time,end_time]=shift.range.split('-').map((value)=>value.trim());
-        return createAvailabilityBlock({date,start_time,end_time,reason});
-      }));
+        return {date,start_time,end_time,reason};
+      });
+      const created=await createAvailabilityBlocks(inputs,items);
       setBlocks((current)=>[...created,...current]);
       setMessage({type:'success',text:allDay?'Đã chặn toàn bộ ba ca trong ngày.':`Đã chặn ${created.length} ca đã chọn.`});
       setSelectedShifts([]);setAllDay(false);setDate('');setOpen(false);

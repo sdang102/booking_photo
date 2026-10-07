@@ -17,9 +17,7 @@ export default function Profile() {
 
   useEffect(() => {
     if (!user) return;
-    getUserBookings(user.id, user.email).then((items) => {
-      setActiveBookings(items.filter((item) => !['completed', 'cancelled'].includes(item.status)).length);
-    });
+    getUserBookings(user.id, user.email, { activeOnly: true }).then((items) => setActiveBookings(items.length));
   }, [user]);
 
   const save = async (event: FormEvent<HTMLFormElement>) => {

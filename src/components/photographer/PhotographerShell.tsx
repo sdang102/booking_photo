@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CalendarDays, CalendarOff, ClipboardList, Home, Star, UserRound } from 'lucide-react';
@@ -9,7 +8,7 @@ import BrandLogo from '@/components/BrandLogo';
 import LogoutButton from '@/components/LogoutButton';
 import BookingAlertToast from '@/components/BookingAlertToast';
 import { useAuth } from '@/lib/context/AuthContext';
-import { getAllBookings } from '@/lib/services/bookingService';
+import { PhotographerBookingsProvider, usePhotographerBookings } from '@/lib/context/PhotographerBookingsContext';
 
 const NAV=[
   {href:'/photographer',label:'Tổng quan',icon:Home},
@@ -20,20 +19,18 @@ const NAV=[
 ];
 
 export default function PhotographerShell({children}:{children:React.ReactNode}){
+  return <RoleGuard allow={['photographer']}>
+    <PhotographerBookingsProvider><PhotographerWorkspace>{children}</PhotographerWorkspace></PhotographerBookingsProvider>
+  </RoleGuard>;
+}
+
+function PhotographerWorkspace({children}:{children:React.ReactNode}){
   const path=usePathname();
   const {user}=useAuth();
-  const [pendingNotice,setPendingNotice]=useState({count:0,key:''});
+  const {items}=usePhotographerBookings();
+  const pending=items.filter((item)=>item.status==='pending');
+  const pendingNotice={count:pending.length,key:pending.map((item)=>item.id).sort().join('|')};
   const current=NAV.find(({href})=>href==='/photographer'?path===href:path.startsWith(href))??NAV[0];
-
-  useEffect(()=>{
-    let active=true;
-    const load=()=>getAllBookings().then((items)=>{if(active){const pending=items.filter((item)=>item.status==='pending');setPendingNotice({count:pending.length,key:pending.map((item)=>item.id).sort().join('|')})}});
-    void load();
-    window.addEventListener('focus',load);
-    window.addEventListener('booking-status-changed',load);
-    const interval=window.setInterval(load,15000);
-    return()=>{active=false;window.removeEventListener('focus',load);window.removeEventListener('booking-status-changed',load);window.clearInterval(interval)};
-  },[]);
 
   const navigation=(mobile=false)=>NAV.map(({href,label,icon:Icon,notification})=>{
     const active=href==='/photographer'?path===href:path.startsWith(href);
@@ -43,8 +40,7 @@ export default function PhotographerShell({children}:{children:React.ReactNode})
     </Link>;
   });
 
-  return <RoleGuard allow={['photographer']}>
-    <div className="workspace-shell workspace-shell--photographer">
+  return <div className="workspace-shell workspace-shell--photographer">
       <header className="workspace-header">
         <div className="workspace-header__brand">
           <BrandLogo compact/>
@@ -67,6 +63,5 @@ export default function PhotographerShell({children}:{children:React.ReactNode})
       </div>
       <nav className="workspace-bottom-nav" aria-label="Điều hướng thợ chụp trên di động">{navigation(true)}<Link href="/profile"><span className="workspace-nav__icon"><UserRound/></span><span>Tôi</span></Link></nav>
       {!path.startsWith('/photographer/bookings')&&<BookingAlertToast key={pendingNotice.key} count={pendingNotice.count} title={`Có ${pendingNotice.count} booking mới chờ duyệt`} message="Nhấn để mở danh sách booking và xác nhận lịch cho khách." href="/photographer/bookings"/>}
-    </div>
-  </RoleGuard>;
+    </div>;
 }

@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
 import { MOCK_REVIEWS } from '@/lib/data/mockData';
-import { getAllBookings } from './bookingService';
 import type { ExperienceReview, ReviewSummary } from '@/types';
 
 const STORAGE_KEY = 'photo_reviews_v1';
@@ -15,21 +14,29 @@ function localReviews(): ExperienceReview[] {
   } catch { return MOCK_REVIEWS; }
 }
 function save(reviews: ExperienceReview[]) { if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(reviews)); }
+function firstRelation<T>(value: T | T[] | null | undefined): T | undefined { return Array.isArray(value) ? value[0] : value ?? undefined; }
 
 export async function getReviews(options: { publicOnly?: boolean; featuredFirst?: boolean; limit?: number } = {}): Promise<ExperienceReview[]> {
-  let reviews: ExperienceReview[] = [];
-  let databaseSucceeded = false;
   try {
     const supabase = createClient();
-    let query = supabase.from('reviews').select('*, bookings(customer_name, service_name_snapshot), portfolio_albums(slug)').order('created_at', { ascending: false });
+    let query = supabase.from('reviews')
+      .select('id,booking_id,user_id,rating,comment,is_public,is_featured,created_at,updated_at,bookings(customer_name,service_name_snapshot),portfolio_albums(slug)');
     if (options.publicOnly) query = query.eq('is_public', true);
+    if (options.featuredFirst) query = query.order('is_featured', { ascending: false });
+    query = query.order('created_at', { ascending: false });
+    if (options.limit) query = query.limit(options.limit);
     const { data, error } = await query;
-    if (!error && data) { databaseSucceeded = true; reviews = data.map((row) => ({ id: row.id, booking_id: row.booking_id, user_id: row.user_id,
-      customer_name: row.bookings?.customer_name ?? 'Khách hàng', rating: row.rating, comment: row.comment,
-      service_title: row.bookings?.service_name_snapshot ?? '', portfolio_slug: row.portfolio_albums?.slug,
-      is_public: row.is_public, is_featured: row.is_featured, created_at: row.created_at, updated_at: row.updated_at })) as ExperienceReview[]; }
+    if (!error && data) return data.map((row) => {
+      const booking = firstRelation(row.bookings);
+      const album = firstRelation(row.portfolio_albums);
+      return { id: row.id, booking_id: row.booking_id, user_id: row.user_id,
+        customer_name: booking?.customer_name ?? 'Khách hàng', rating: row.rating, comment: row.comment,
+        service_title: booking?.service_name_snapshot ?? '', portfolio_slug: album?.slug,
+        is_public: row.is_public, is_featured: row.is_featured, created_at: row.created_at, updated_at: row.updated_at };
+    }) as ExperienceReview[];
   } catch { /* local fallback */ }
-  if (!databaseSucceeded && isDevelopment) reviews = localReviews();
+  if (!isDevelopment) return [];
+  let reviews = localReviews();
   if (options.publicOnly) reviews = reviews.filter((review) => review.is_public);
   reviews.sort((a, b) => options.featuredFirst && a.is_featured !== b.is_featured ? Number(b.is_featured) - Number(a.is_featured) : b.created_at.localeCompare(a.created_at));
   return options.limit ? reviews.slice(0, options.limit) : reviews;
@@ -39,9 +46,9 @@ export async function getPhotographerReviews(): Promise<ExperienceReview[]> {
   const supabase=createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return[];
-  const {data,error}=await supabase.from('reviews').select('*, bookings!inner(customer_name, service_name_snapshot, photographer_id), portfolio_albums(slug)').eq('bookings.photographer_id',user.id).order('created_at',{ascending:false});
+  const {data,error}=await supabase.from('reviews').select('id,booking_id,user_id,rating,comment,is_public,is_featured,created_at,updated_at,bookings!inner(customer_name,service_name_snapshot,photographer_id),portfolio_albums(slug)').eq('bookings.photographer_id',user.id).order('created_at',{ascending:false}).limit(100);
   if(error||!data)return[];
-  return data.map((row)=>({id:row.id,booking_id:row.booking_id,user_id:row.user_id,customer_name:row.bookings?.customer_name??'Khách hàng',rating:row.rating,comment:row.comment,service_title:row.bookings?.service_name_snapshot??'',portfolio_slug:row.portfolio_albums?.slug,is_public:row.is_public,is_featured:row.is_featured,created_at:row.created_at,updated_at:row.updated_at})) as ExperienceReview[];
+  return data.map((row)=>{const booking=firstRelation(row.bookings);const album=firstRelation(row.portfolio_albums);return{id:row.id,booking_id:row.booking_id,user_id:row.user_id,customer_name:booking?.customer_name??'Khách hàng',rating:row.rating,comment:row.comment,service_title:booking?.service_name_snapshot??'',portfolio_slug:album?.slug,is_public:row.is_public,is_featured:row.is_featured,created_at:row.created_at,updated_at:row.updated_at}}) as ExperienceReview[];
 }
 
 export function reviewSummary(reviews: ExperienceReview[]): ReviewSummary {
@@ -50,9 +57,13 @@ export function reviewSummary(reviews: ExperienceReview[]): ReviewSummary {
 }
 
 export async function canReviewBooking(bookingId: string): Promise<{ allowed: boolean; reason?: string }> {
-  const booking = (await getAllBookings()).find((item) => item.id === bookingId);
+  const supabase = createClient();
+  const [{ data: booking }, { data: review }] = await Promise.all([
+    supabase.from('bookings').select('id,status').eq('id', bookingId).maybeSingle(),
+    supabase.from('reviews').select('id').eq('booking_id', bookingId).maybeSingle(),
+  ]);
   if (!booking || booking.status !== 'completed') return { allowed: false, reason: 'Chỉ booking đã hoàn thành mới có thể đánh giá.' };
-  if ((await getReviews()).some((review) => review.booking_id === bookingId)) return { allowed: false, reason: 'Booking này đã được đánh giá.' };
+  if (review) return { allowed: false, reason: 'Booking này đã được đánh giá.' };
   return { allowed: true };
 }
 
@@ -60,16 +71,18 @@ export async function createReview(input: { bookingId: string; userId?: string; 
   const comment = input.comment.trim();
   if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) return { success: false, message: 'Vui lòng chọn từ 1 đến 5 sao.' };
   if (comment.length < 10 || comment.length > 800) return { success: false, message: 'Nội dung đánh giá cần từ 10 đến 800 ký tự.' };
-  const permission = await canReviewBooking(input.bookingId);
-  if (!permission.allowed) return { success: false, message: permission.reason };
   try {
     const { data, error } = await createClient().rpc('review_completed_booking', { target_booking: input.bookingId, target_rating: input.rating, target_comment: comment });
     if (!error && data) {
       if (typeof window !== 'undefined') window.dispatchEvent(new Event('review-created'));
       return { success: true };
     }
+    if (error?.code === '23505') return { success:false, message:'Booking này đã được đánh giá.' };
+    if (error && /not reviewable|completed|booking/i.test(error.message)) return { success:false, message:'Chỉ booking đã hoàn thành của bạn mới có thể đánh giá.' };
   } catch { /* Development fallback below. */ }
   if (!isDevelopment) return { success: false, message: 'Không thể lưu đánh giá vào database.' };
+  const permission = await canReviewBooking(input.bookingId);
+  if (!permission.allowed) return { success: false, message: permission.reason };
   const now = new Date().toISOString(); const review: ExperienceReview = { id: `rv-${Date.now()}`, booking_id: input.bookingId, user_id: input.userId, customer_name: input.customerName, rating: input.rating, comment, service_title: input.serviceTitle, is_public: true, is_featured: false, created_at: now, updated_at: now };
   save([review, ...localReviews()]);
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('review-created'));

@@ -6,7 +6,7 @@ import PublicSiteHeader from '@/components/PublicSiteHeader';
 import PublicMotionRoot from '@/components/motion/PublicMotionRoot';
 import { FinClosing, FinCraft, FinFooter, FinHero, FinProcess, FinSelectedWorks } from '@/components/FinPhotoSections';
 import type { HomepageSection, PortfolioAlbum } from '@/types';
-import { getHomepageSections, getPortfolioAlbums } from '@/lib/services/contentService';
+import { getAlbumCovers, getHomepageSections } from '@/lib/services/contentService';
 import { useAuth } from '@/lib/context/AuthContext';
 
 export default function HomePage() {
@@ -22,7 +22,7 @@ export default function HomePage() {
   }, [authLoading, isAdmin, isPhotographer, router]);
 
   useEffect(() => {
-    Promise.all([getHomepageSections(), getPortfolioAlbums(true)]).then(([content, portfolio]) => {
+    Promise.all([getHomepageSections(), getAlbumCovers({ limit: 4 })]).then(([content, portfolio]) => {
       setSections(content);
       setAlbums(portfolio);
     });

@@ -1,20 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Search } from 'lucide-react';
-import type { BookingPhotoRecord, BookingStatus } from '@/types';
-import { getAllBookings } from '@/lib/services/bookingService';
+import type { BookingStatus } from '@/types';
 import BookingStatusBadge, { BOOKING_STATUS_LABEL } from '@/components/photographer/BookingStatusBadge';
+import { usePhotographerBookings } from '@/lib/context/PhotographerBookingsContext';
 
 const FILTERS=['pending','confirmed','completed'] as const satisfies readonly BookingStatus[];
 type BookingFilter=(typeof FILTERS)[number];
 
 export default function PhotographerBookings(){
-  const[items,setItems]=useState<BookingPhotoRecord[]>([]);
+  const{items}=usePhotographerBookings();
   const[q,setQ]=useState('');
   const[status,setStatus]=useState<'all'|BookingFilter>('all');
-  useEffect(()=>{getAllBookings().then(setItems)},[]);
   const shown=items.filter((item)=>(status==='all'||item.status===status)&&`${item.customer_name} ${item.service_title} ${item.booking_date}`.toLowerCase().includes(q.toLowerCase()));
 
   return <>

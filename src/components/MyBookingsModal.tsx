@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import React, { useEffect, useState } from 'react';
-import { BookingPhotoRecord, Service } from '@/types';
+import { BookingPhotoRecord } from '@/types';
 import { formatVND } from './ServiceCard';
 import { useAuth } from '@/lib/context/AuthContext';
 import { X, Calendar, Clock, MapPin, Sparkles } from 'lucide-react';
@@ -12,15 +12,16 @@ import BookingStatusBadge from '@/components/photographer/BookingStatusBadge';
 
 interface MyBookingsModalProps {
   isOpen: boolean;
+  isLoading?: boolean;
   onClose: () => void;
   bookings: BookingPhotoRecord[];
-  services: Service[];
   onNewBooking: () => void;
   onOpenAuth: () => void;
 }
 
 export default function MyBookingsModal({
   isOpen,
+  isLoading = false,
   onClose,
   bookings,
   onNewBooking,
@@ -91,7 +92,9 @@ export default function MyBookingsModal({
 
         {/* Body */}
         <div className="p-5 sm:p-6 flex-1 overflow-y-auto space-y-4">
-          {userBookings.length === 0 ? (
+          {isLoading ? (
+            <div className="py-12 text-center text-sm text-slate-600">Đang tải lịch của bạn…</div>
+          ) : userBookings.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 rounded-full bg-slate-100 border border-sky-200 text-slate-500 flex items-center justify-center mx-auto mb-3">
                 <Calendar className="w-8 h-8" />

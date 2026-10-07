@@ -20,7 +20,9 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const SESSION_KEY = 'photo_user_session';
+const PROFILE_CACHE_MS = 5_000;
+let profileCache: { userId: string; value: UserProfile; expiresAt: number } | null = null;
+let profileRequest: { userId: string; value: Promise<UserProfile> } | null = null;
 
 function authErrorMessage(error?: { message?: string; code?: string }) {
   const message = error?.message || '';
@@ -41,14 +43,44 @@ function authErrorMessage(error?: { message?: string; code?: string }) {
 }
 
 async function profileFromSupabase(authUser: { id:string; email?:string; user_metadata?:Record<string,unknown>; app_metadata?:Record<string,unknown> }): Promise<UserProfile> {
-  const supabase = createClient();
-  const [{ data }, { data: isAdmin }, { data: isPhotographer }] = await Promise.all([
-    supabase.from('profiles').select('full_name,email,phone').eq('id', authUser.id).maybeSingle(),
-    supabase.rpc('has_role', { required_role: 'admin' }),
-    supabase.rpc('has_role', { required_role: 'photographer' }),
-  ]);
-  const dbRoles: AppRole[] = [isAdmin && 'admin', isPhotographer && 'photographer'].filter((role): role is AppRole => Boolean(role));
-  return { id:authUser.id,email:authUser.email || data?.email || '',full_name:data?.full_name || String(authUser.user_metadata?.full_name || 'Khách hàng'),phone:data?.phone || String(authUser.user_metadata?.phone || ''),roles:dbRoles.length?normalizeRoles(dbRoles):rolesFromAuthMetadata(authUser.app_metadata,authUser.user_metadata) };
+  if (profileCache?.userId === authUser.id && profileCache.expiresAt > Date.now()) return profileCache.value;
+  if (profileRequest?.userId === authUser.id) return profileRequest.value;
+
+  const request = (async () => {
+    const supabase = createClient();
+    const { data: contextData, error: contextError } = await supabase.rpc('get_current_user_context');
+    const contextRow = Array.isArray(contextData) ? contextData[0] : contextData;
+    let profile: UserProfile;
+
+    if (!contextError && contextRow) {
+      const row = contextRow as Record<string, unknown>;
+      profile = {
+        id: authUser.id,
+        email: authUser.email || String(row.email || ''),
+        full_name: String(row.full_name || authUser.user_metadata?.full_name || 'Khách hàng'),
+        phone: String(row.phone || authUser.user_metadata?.phone || ''),
+        roles: normalizeRoles(row.roles),
+      };
+    } else {
+      // Backward-compatible while the Phase 1 migration is waiting to be applied.
+      const [{ data }, { data: isAdmin }, { data: isPhotographer }] = await Promise.all([
+        supabase.from('profiles').select('full_name,email,phone').eq('id', authUser.id).maybeSingle(),
+        supabase.rpc('has_role', { required_role: 'admin' }),
+        supabase.rpc('has_role', { required_role: 'photographer' }),
+      ]);
+      const dbRoles: AppRole[] = [isAdmin && 'admin', isPhotographer && 'photographer'].filter((role): role is AppRole => Boolean(role));
+      profile = { id:authUser.id,email:authUser.email || data?.email || '',full_name:data?.full_name || String(authUser.user_metadata?.full_name || 'Khách hàng'),phone:data?.phone || String(authUser.user_metadata?.phone || ''),roles:dbRoles.length?normalizeRoles(dbRoles):rolesFromAuthMetadata(authUser.app_metadata,authUser.user_metadata) };
+    }
+    profileCache = { userId: authUser.id, value: profile, expiresAt: Date.now() + PROFILE_CACHE_MS };
+    return profile;
+  })();
+
+  profileRequest = { userId: authUser.id, value: request };
+  try {
+    return await request;
+  } finally {
+    if (profileRequest?.value === request) profileRequest = null;
+  }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -63,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const syncUser = async (authUser: Parameters<typeof profileFromSupabase>[0] | null) => {
       const currentSyncId = ++syncId;
       if (!authUser) {
-        localStorage.removeItem(SESSION_KEY);
+        profileCache = null;
         if (active) {
           setUser(null);
           setIsLoading(false);
@@ -75,11 +107,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const profile = await profileFromSupabase(authUser);
         if (!active || currentSyncId !== syncId) return;
         setUser(profile);
-        localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
       } catch {
         if (!active || currentSyncId !== syncId) return;
         setUser(null);
-        localStorage.removeItem(SESSION_KEY);
       } finally {
         if (active && currentSyncId === syncId) setIsLoading(false);
       }
@@ -105,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
       if (error || !data.user) { setIsLoading(false); return { success:false, message:authErrorMessage(error ?? undefined) }; }
       const profile = await profileFromSupabase(data.user);
-      setUser(profile); localStorage.setItem(SESSION_KEY, JSON.stringify(profile)); setIsLoading(false);
+      setUser(profile); setIsLoading(false);
       return { success:true, roles:profile.roles };
     } catch (error) {
       setIsLoading(false);
@@ -137,7 +167,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.session) {
         const databaseProfile = await profileFromSupabase(data.user);
         setUser(databaseProfile);
-        localStorage.setItem(SESSION_KEY, JSON.stringify(databaseProfile));
       }
       setIsLoading(false);
       return { success:true, roles:profile.roles, requiresEmailConfirmation:!data.session, message:data.session ? 'Đăng ký thành công.' : 'Đã tạo tài khoản. Supabase vừa gửi email xác nhận; hãy bấm liên kết trong email rồi đăng nhập.' };
@@ -149,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try { await createClient().auth.signOut(); } catch { /* Local logout still succeeds. */ }
-    localStorage.removeItem(SESSION_KEY); setUser(null);
+    profileCache = null; profileRequest = null; setUser(null);
   };
 
   const resendConfirmation = async (email: string): Promise<AuthResult> => {
@@ -180,7 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if(profileError)return{success:false,message:profileError.message||'Không thể lưu hồ sơ.'};
       const nextUser={...user,full_name:cleanName,email:effectiveEmail,phone:cleanPhone};
       setUser(nextUser);
-      localStorage.setItem(SESSION_KEY,JSON.stringify(nextUser));
+      profileCache={userId:user.id,value:nextUser,expiresAt:Date.now()+PROFILE_CACHE_MS};
       const emailPending=cleanEmail!==effectiveEmail;
       return{success:true,message:emailPending?'Đã lưu tên và số điện thoại. Hãy mở email mới để xác nhận thay đổi địa chỉ email.':'Đã cập nhật hồ sơ thành công.'};
     }catch(error){

@@ -6,8 +6,8 @@ import Navbar from './Navbar';
 import AuthModal from './AuthModal';
 import MyBookingsModal from './MyBookingsModal';
 import { useAuth } from '@/lib/context/AuthContext';
-import { getServices, getUserBookings } from '@/lib/services/bookingService';
-import type { BookingPhotoRecord, Service } from '@/types';
+import { getActiveUserBookingCount, getUserBookings } from '@/lib/services/bookingService';
+import type { BookingPhotoRecord } from '@/types';
 
 export default function PublicSiteHeader() {
   const router = useRouter();
@@ -15,31 +15,48 @@ export default function PublicSiteHeader() {
   const [authOpen, setAuthOpen] = useState(false);
   const [bookingsOpen, setBookingsOpen] = useState(false);
   const [bookings, setBookings] = useState<BookingPhotoRecord[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [activeBookingCount, setActiveBookingCount] = useState(0);
 
-  useEffect(() => { getServices().then(setServices); }, []);
   useEffect(() => {
     if (!user) return;
     let active = true;
-    const load = () => getUserBookings(user.id, user.email).then(items => { if (active) setBookings(items); });
+    const load = () => {
+      if (document.visibilityState === 'hidden') return;
+      getActiveUserBookingCount(user.id).then((count) => { if (active) setActiveBookingCount(count); });
+    };
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') load(); };
     void load();
     window.addEventListener('focus', load);
-    const interval = window.setInterval(load, 15000);
-    return () => { active = false; window.removeEventListener('focus', load); window.clearInterval(interval); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    const interval = window.setInterval(load, 60_000);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', load);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.clearInterval(interval);
+    };
   }, [user]);
 
-  const activeBookings = bookings.filter(booking => !['completed', 'cancelled'].includes(booking.status));
-  const notificationKey = activeBookings.map(booking => `${booking.id}:${booking.status}`).sort().join('|');
+  const openBookings = async () => {
+    setBookingsOpen(true);
+    if (!user) return;
+    setBookingsLoading(true);
+    const items = await getUserBookings(user.id, user.email, { limit: 50 });
+    setBookings(items);
+    setActiveBookingCount(items.filter((booking) => !['completed', 'cancelled'].includes(booking.status)).length);
+    setBookingsLoading(false);
+  };
 
   return <>
     <Navbar
       onOpenBooking={(serviceId) => router.push(serviceId ? `/booking?service=${serviceId}` : '/booking')}
       onOpenAuth={() => setAuthOpen(true)}
-      onOpenBookings={() => setBookingsOpen(true)}
-      bookingNotificationCount={activeBookings.length}
-      bookingNotificationKey={notificationKey}
+      onOpenBookings={() => void openBookings()}
+      bookingNotificationCount={user ? activeBookingCount : 0}
+      bookingNotificationKey={`${user?.id ?? 'guest'}:${user ? activeBookingCount : 0}`}
     />
     <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
-    <MyBookingsModal isOpen={bookingsOpen} onClose={() => setBookingsOpen(false)} bookings={bookings} services={services} onNewBooking={() => router.push('/booking')} onOpenAuth={() => setAuthOpen(true)} />
+    <MyBookingsModal isOpen={bookingsOpen} isLoading={bookingsLoading} onClose={() => setBookingsOpen(false)} bookings={bookings} onNewBooking={() => router.push('/booking')} onOpenAuth={() => setAuthOpen(true)} />
   </>;
 }

@@ -1,32 +1,76 @@
 import { createClient } from '@/lib/supabase/client';
-import type { FaqItem, HomepageSection, PortfolioAlbum, ServiceAddon, ShootingLocation } from '@/types';
-import { SHOOTING_LOCATIONS } from '@/lib/data/mockData';
+import type { HomepageSection, PortfolioAlbum, ServiceAddon } from '@/types';
 
-const isDevelopment = process.env.NODE_ENV !== 'production';
+interface AlbumCoverOptions {
+  publicOnly?: boolean;
+  limit?: number;
+}
 
-export async function getPortfolioAlbums(publicOnly = true): Promise<PortfolioAlbum[]> {
+const ALBUM_COVER_SELECT = 'id,slug,title,shoot_date,location_text,cover_image,cover_image_mobile,display_order,is_public,categories(slug),locations(name)';
+const ALBUM_DETAIL_SELECT = `${ALBUM_COVER_SELECT},portfolio_images(id,image_url,alt_text,width,height,display_order)`;
+
+interface AlbumQueryRow {
+  id: string;
+  slug: string;
+  title: string;
+  shoot_date?: string | null;
+  location_text?: string | null;
+  cover_image?: string | null;
+  cover_image_mobile?: string | null;
+  categories?: { slug?: string | null } | Array<{ slug?: string | null }> | null;
+  locations?: { name?: string | null } | Array<{ name?: string | null }> | null;
+  portfolio_images?: Array<Record<string, unknown>>;
+}
+
+function mapAlbumCover(album: AlbumQueryRow): PortfolioAlbum {
+  const category = Array.isArray(album.categories) ? album.categories[0] : album.categories;
+  const location = Array.isArray(album.locations) ? album.locations[0] : album.locations;
+  return {
+    id: String(album.id),
+    slug: String(album.slug),
+    title: String(album.title),
+    category: category?.slug ?? 'concept',
+    location: album.location_text ?? location?.name ?? undefined,
+    shoot_date: album.shoot_date ?? undefined,
+    cover_url: album.cover_image ?? '',
+    mobile_cover_url: album.cover_image_mobile ?? undefined,
+    images: [],
+  } as PortfolioAlbum;
+}
+
+export async function getAlbumCovers({ publicOnly = true, limit }: AlbumCoverOptions = {}): Promise<PortfolioAlbum[]> {
   const supabase = createClient();
-  let query = supabase.from('portfolio_albums').select('*, categories(slug), locations(name), portfolio_images(*)').order('display_order');
+  let query = supabase.from('portfolio_albums').select(ALBUM_COVER_SELECT).order('display_order');
   if (publicOnly) query = query.eq('is_public', true);
+  if (limit) query = query.limit(limit);
   const { data, error } = await query;
   if (error || !data) return [];
-  return data.map((album) => ({ id: album.id, slug: album.slug, title: album.title,
-    category: album.categories?.slug ?? 'concept', location: album.location_text ?? album.locations?.name,
-    cover_url: album.cover_image ?? '', mobile_cover_url:album.cover_image_mobile??undefined, images: (album.portfolio_images ?? []).sort((a: { display_order:number }, b: { display_order:number }) => a.display_order-b.display_order).map((image: { id:string; image_url:string; alt_text?:string;width?:number;height?:number }) => ({ id:image.id,url:image.image_url,alt:image.alt_text ?? album.title,width:image.width||1200,height:image.height||800 })) })) as PortfolioAlbum[];
+  return (data as unknown as AlbumQueryRow[]).map(mapAlbumCover);
 }
 
-export async function getPortfolioAlbum(slug: string) {
-  return (await getPortfolioAlbums(true)).find((album) => album.slug === slug) ?? null;
-}
-
-export async function getLocations(): Promise<ShootingLocation[]> {
-  const { data, error } = await createClient().from('locations').select('*').eq('is_active', true).order('display_order');
-  if (error || !data) return isDevelopment ? SHOOTING_LOCATIONS : [];
-  return data.map((item) => ({ id:item.id,name:item.name,area:item.area,description:item.description ?? '',travel_fee:Number(item.travel_fee),image_url:item.cover_image ?? '' }));
+export async function getAlbumBySlug(slug: string): Promise<PortfolioAlbum | null> {
+  const { data, error } = await createClient()
+    .from('portfolio_albums')
+    .select(ALBUM_DETAIL_SELECT)
+    .eq('slug', slug)
+    .eq('is_public', true)
+    .order('display_order', { referencedTable: 'portfolio_images', ascending: true })
+    .single();
+  if (error || !data) return null;
+  const row = data as unknown as AlbumQueryRow;
+  const album = mapAlbumCover(row);
+  album.images = (row.portfolio_images ?? []).map((image) => ({
+    id: String(image.id),
+    url: String(image.image_url),
+    alt: String(image.alt_text ?? row.title),
+    width: Number(image.width) || 1200,
+    height: Number(image.height) || 800,
+  }));
+  return album;
 }
 
 export async function getHomepageSections(): Promise<HomepageSection[]> {
-  const { data, error } = await createClient().from('homepage_sections').select('*').eq('is_visible', true).order('display_order');
+  const { data, error } = await createClient().from('homepage_sections').select('id,section_key,title,subtitle,image_url,content,is_visible,display_order').eq('is_visible', true).order('display_order');
   if (error || !data) return [];
   return data.map((item) => ({
     id: String(item.id), section_key: String(item.section_key),
@@ -35,12 +79,6 @@ export async function getHomepageSections(): Promise<HomepageSection[]> {
     content: item.content && typeof item.content === 'object' ? item.content as Record<string, unknown> : {},
     is_visible: Boolean(item.is_visible), display_order: Number(item.display_order ?? 0),
   }));
-}
-
-export async function getFaqs(): Promise<FaqItem[]> {
-  const { data, error } = await createClient().from('faqs').select('id,question,answer,display_order').eq('is_visible', true).order('display_order');
-  if (error || !data) return [];
-  return data.map((item) => ({ id:String(item.id), question:String(item.question), answer:String(item.answer), display_order:Number(item.display_order ?? 0) }));
 }
 
 export async function getCategories(): Promise<{slug:string;name:string}[]> {

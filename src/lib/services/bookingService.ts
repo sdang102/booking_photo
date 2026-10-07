@@ -1,12 +1,30 @@
 import { createClient } from '@/lib/supabase/client';
 import { MOCK_SERVICES } from '@/lib/data/mockData';
-import { Service, BookingFormData, BookingPhotoRecord, CustomerSummary, PublicScheduleItem, BookingStatus, AvailabilityBlock } from '@/types';
+import { Service, BookingFormData, BookingPhotoRecord, PublicScheduleItem, BookingStatus, AvailabilityBlock } from '@/types';
 import { normalizeVietnameseMobile, VIETNAMESE_MOBILE_ERROR } from '@/lib/phone';
-import { BOOKING_SHIFTS, isRangeAvailable, rangesOverlap } from '@/lib/bookingAvailability';
+import { isRangeAvailable, rangesOverlap } from '@/lib/bookingAvailability';
 
 const TABLE_NAME = 'bookings';
+const BOOKING_SELECT = 'id,created_at,customer_name,customer_phone,customer_email,service_id,service_name_snapshot,shoot_date,start_time,end_time,shoot_address,customer_note,photographer_note,status,payment_status,total_price,deposit_amount,user_id,photographer_id';
+const ACTIVE_BOOKING_STATUSES: BookingStatus[] = ['pending', 'confirmed', 'checked_in', 'shooting'];
 const LOCAL_BOOKINGS_KEY = 'photo_bookings_v3';
 const isDevelopment = process.env.NODE_ENV !== 'production';
+
+export interface BookingRevenueSummary {
+  total: number;
+  realized: number;
+  atVenue: number;
+  activeCount: number;
+}
+
+export interface BookingFinancialRecord {
+  id: string;
+  booking_date: string;
+  service_title: string;
+  total_price: number;
+  payment_status?: string;
+  status: BookingStatus;
+}
 
 // Sample seed bookings for realistic demo and testing if storage is fresh
 const SEED_BOOKINGS: BookingPhotoRecord[] = [
@@ -85,19 +103,22 @@ export async function getServices(): Promise<Service[]> {
     const supabase = createClient();
     const { data, error } = await supabase
       .from('services')
-      .select('*, categories(slug)')
+      .select('id,name,slug,description,short_description,price,duration_minutes,features,cover_image,is_featured,edited_photo_count,concept_count,location_count,categories(slug)')
       .order('price', { ascending: true });
 
     if (!error && data && data.length > 0) {
-      return data.map((row) => ({
-        id: row.id, title: row.name ?? row.title, slug: row.slug,
-        category: row.categories?.slug ?? row.category ?? 'portrait',
-        description: row.description ?? row.short_description ?? '', price: Number(row.price),
-        duration_minutes: row.duration_minutes, features: Array.isArray(row.features) ? row.features : [],
-        image_url: row.cover_image ?? row.image_url ?? '', is_popular: row.is_featured ?? row.is_popular,
-        edited_photos: row.edited_photo_count, concept_count: row.concept_count,
-        location_count: row.location_count ? String(row.location_count) : undefined,
-      })) as Service[];
+      return data.map((row) => {
+        const category = Array.isArray(row.categories) ? row.categories[0] : row.categories as { slug?: string } | null;
+        return {
+          id: row.id, title: row.name, slug: row.slug,
+          category: category?.slug ?? 'portrait',
+          description: row.description ?? row.short_description ?? '', price: Number(row.price),
+          duration_minutes: row.duration_minutes, features: Array.isArray(row.features) ? row.features : [],
+          image_url: row.cover_image ?? '', is_popular: row.is_featured,
+          edited_photos: row.edited_photo_count, concept_count: row.concept_count,
+          location_count: row.location_count ? String(row.location_count) : undefined,
+        };
+      }) as Service[];
     }
   } catch (err) {
     console.warn('Using mock services due to Supabase connection:', err);
@@ -141,7 +162,7 @@ export async function createBookingPhoto(
     const { data, error } = await supabase
       .from(TABLE_NAME)
       .insert([payload])
-      .select()
+      .select(BOOKING_SELECT)
       .single();
 
     if (!error && data) {
@@ -165,13 +186,25 @@ export async function createBookingPhoto(
 }
 
 // RLS quyết định phạm vi: photographer chỉ thấy lịch được giao, admin chỉ dùng cho báo cáo.
-export async function getAllBookings(): Promise<BookingPhotoRecord[]> {
+interface BookingQueryOptions {
+  fromDate?: string;
+  statuses?: BookingStatus[];
+  limit?: number;
+  offset?: number;
+}
+
+export async function getAllBookings({ fromDate, statuses, limit = 200, offset = 0 }: BookingQueryOptions = {}): Promise<BookingPhotoRecord[]> {
   try {
     const supabase = createClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from(TABLE_NAME)
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select(BOOKING_SELECT)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (fromDate) query = query.gte('shoot_date', fromDate);
+    if (statuses?.length) query = query.in('status', statuses);
+    const { data, error } = await query;
 
     if (!error && data) {
       return data.map(mapBookingRow);
@@ -182,17 +215,72 @@ export async function getAllBookings(): Promise<BookingPhotoRecord[]> {
   return isDevelopment ? getLocalBookings() : [];
 }
 
+export async function getBookingFinancialRecords({ limit = 50, offset = 0 }: Pick<BookingQueryOptions, 'limit' | 'offset'> = {}): Promise<BookingFinancialRecord[]> {
+  const { data, error } = await createClient()
+    .from(TABLE_NAME)
+    .select('id,shoot_date,service_name_snapshot,total_price,payment_status,status')
+    .neq('status', 'cancelled')
+    .order('shoot_date', { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error || !data) return [];
+  return data.map((row) => ({
+    id: String(row.id),
+    booking_date: String(row.shoot_date),
+    service_title: String(row.service_name_snapshot),
+    total_price: Number(row.total_price),
+    payment_status: String(row.payment_status),
+    status: row.status as BookingStatus,
+  }));
+}
+
+export async function getBookingRevenueSummary(): Promise<BookingRevenueSummary> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('get_admin_booking_revenue_summary');
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!error && row) {
+    const value = row as Record<string, unknown>;
+    return {
+      total: Number(value.total_active ?? 0),
+      realized: Number(value.realized ?? 0),
+      atVenue: Number(value.at_venue ?? 0),
+      activeCount: Number(value.active_count ?? 0),
+    };
+  }
+
+  // Backward-compatible while the Phase 1 migration is waiting to be applied.
+  const records: BookingFinancialRecord[] = [];
+  const batchSize = 1_000;
+  for (let offset = 0; ; offset += batchSize) {
+    const batch = await getBookingFinancialRecords({ limit: batchSize, offset });
+    records.push(...batch);
+    if (batch.length < batchSize) break;
+  }
+  const completed = records.filter((item) => item.status === 'completed');
+  const atVenue = records.filter((item) => item.status !== 'completed');
+  return {
+    total: records.reduce((sum, item) => sum + item.total_price, 0),
+    realized: completed.reduce((sum, item) => sum + item.total_price, 0),
+    atVenue: atVenue.reduce((sum, item) => sum + item.total_price, 0),
+    activeCount: atVenue.length,
+  };
+}
+
 // 3. Lấy lịch đặt của riêng người dùng hiện tại
-export async function getUserBookings(userId?: string, email?: string): Promise<BookingPhotoRecord[]> {
+export async function getUserBookings(
+  userId?: string,
+  email?: string,
+  { activeOnly = false, limit = 50 }: { activeOnly?: boolean; limit?: number } = {},
+): Promise<BookingPhotoRecord[]> {
   try {
     const supabase = createClient();
-    let query = supabase.from(TABLE_NAME).select('*').order('created_at', { ascending: false });
+    let query = supabase.from(TABLE_NAME).select(BOOKING_SELECT).order('created_at', { ascending: false }).limit(limit);
 
     if (userId) {
       query = query.eq('user_id', userId);
     } else if (email) {
       query = query.eq('customer_email', email);
     }
+    if (activeOnly) query = query.in('status', ACTIVE_BOOKING_STATUSES);
 
     const { data, error } = await query;
     if (!error && data) {
@@ -204,11 +292,21 @@ export async function getUserBookings(userId?: string, email?: string): Promise<
 
   // Filter local
   if (!isDevelopment) return [];
-  const locals = getLocalBookings();
-  if (email) {
-    return locals.filter((b) => b.customer_email.toLowerCase() === email.toLowerCase());
-  }
-  return locals;
+  let locals = getLocalBookings();
+  if (userId) locals = locals.filter((booking) => booking.user_id === userId || (email && booking.customer_email.toLowerCase() === email.toLowerCase()));
+  else if (email) locals = locals.filter((booking) => booking.customer_email.toLowerCase() === email.toLowerCase());
+  if (activeOnly) locals = locals.filter((booking) => ACTIVE_BOOKING_STATUSES.includes(booking.status));
+  return locals.slice(0, limit);
+}
+
+export async function getActiveUserBookingCount(userId: string): Promise<number> {
+  const { count, error } = await createClient()
+    .from(TABLE_NAME)
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .in('status', ACTIVE_BOOKING_STATUSES);
+  if (error) return 0;
+  return count ?? 0;
 }
 
 // 4. Cập nhật trạng thái lịch chụp (xác nhận, hoàn thành, hủy)
@@ -217,12 +315,6 @@ export async function updateBookingStatus(
   newStatus: BookingStatus,
   actor: 'admin' | 'photographer' = 'photographer'
 ): Promise<boolean> {
-  if (actor === 'photographer') {
-    const current = (await getAllBookings()).find((booking) => booking.id === bookingId)?.status;
-    const allowed: Partial<Record<BookingStatus, BookingStatus>> = { pending: 'confirmed', confirmed: 'checked_in', checked_in: 'shooting', shooting: 'completed' };
-    const canCancel = newStatus === 'cancelled' && (current === 'pending' || current === 'confirmed');
-    if (!current || (allowed[current] !== newStatus && !canCancel)) return false;
-  }
   try {
     const supabase = createClient();
     if (actor === 'photographer') {
@@ -246,28 +338,6 @@ export async function updateBookingStatus(
   return false;
 }
 
-// 5. Kiểm tra và lấy danh sách các khung giờ bị KHÓA theo ngày
-export async function getLockedSlots(selectedDate?: string): Promise<{ date: string; time: string; serviceTitle: string; id: string }[]> {
-  const all = await getAllBookings();
-  const bookings = all
-    .filter((b) => {
-      const isLockedStatus = ['confirmed', 'checked_in', 'shooting', 'completed'].includes(b.status);
-      if (!isLockedStatus) return false;
-      if (selectedDate) return b.booking_date === selectedDate;
-      return true;
-    })
-    .map((b) => ({
-      date: b.booking_date,
-      time: b.booking_time,
-      serviceTitle: b.service_title,
-      id: b.id,
-    }));
-  const blocks = (await getAvailabilityBlocks())
-    .filter((block) => !selectedDate || block.date === selectedDate)
-    .flatMap((block) => BOOKING_SHIFTS.filter((shift) => rangesOverlap(shift.range, `${block.start_time} - ${block.end_time}`)).map((shift) => ({ date: block.date, time: shift.range, serviceTitle: `Đã chặn: ${block.reason}`, id: block.id })));
-  return [...bookings, ...blocks];
-}
-
 // 6. Lịch chụp công khai để khách xem (KHÔNG chứa thông tin cá nhân, KHÔNG mật khẩu)
 export async function getPublicSchedule(): Promise<PublicScheduleItem[]> {
   try {
@@ -281,50 +351,6 @@ export async function getPublicSchedule(): Promise<PublicScheduleItem[]> {
   return isDevelopment ? getLocalBookings().filter((b) => b.status !== 'cancelled').map((b) => ({ id:b.id,booking_date:b.booking_date,booking_time:b.booking_time,service_title:b.service_title,status:b.status,location_type:b.location_type })) : [];
 }
 
-// 7. Thống kê danh sách khách hàng cho Admin (Tuyệt đối KHÔNG có mật khẩu)
-export async function getCustomersSummary(): Promise<CustomerSummary[]> {
-  const bookings = await getAllBookings();
-  const customerMap = new Map<string, CustomerSummary>();
-
-  for (const b of bookings) {
-    // Unique key by email or phone
-    const key = (b.customer_email || b.customer_phone).toLowerCase().trim();
-    if (!key) continue;
-
-    const existing = customerMap.get(key);
-    const isCompleted = b.status === 'completed';
-
-    if (!existing) {
-      customerMap.set(key, {
-        id: 'cust_' + Math.abs(key.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)),
-        name: b.customer_name,
-        phone: b.customer_phone,
-        email: b.customer_email,
-        totalBookings: 1,
-        completedBookings: isCompleted ? 1 : 0,
-        totalSpent: b.status !== 'cancelled' ? b.total_price : 0,
-        totalDeposit: 0,
-        lastBookingDate: b.booking_date,
-        recentStatus: b.status,
-        notes: b.notes,
-      });
-    } else {
-      existing.totalBookings += 1;
-      if (isCompleted) existing.completedBookings += 1;
-      if (b.status !== 'cancelled') existing.totalSpent += b.total_price;
-      if (b.booking_date > (existing.lastBookingDate || '')) {
-        existing.lastBookingDate = b.booking_date;
-        existing.recentStatus = b.status;
-      }
-      if (b.notes && !existing.notes) {
-        existing.notes = b.notes;
-      }
-    }
-  }
-
-  return Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
-}
-
 function updateLocalStatus(id: string, status: BookingStatus) {
   if (typeof window === 'undefined') return;
   const list = getLocalBookings();
@@ -336,7 +362,9 @@ function updateLocalStatus(id: string, status: BookingStatus) {
 }
 
 export async function getBookingById(id: string) {
-  return (await getAllBookings()).find((booking) => booking.id === id) ?? null;
+  const { data, error } = await createClient().from(TABLE_NAME).select(BOOKING_SELECT).eq('id', id).maybeSingle();
+  if (error || !data) return null;
+  return mapBookingRow(data);
 }
 
 export async function updatePhotographerNote(bookingId:string,note:string){
@@ -371,24 +399,44 @@ export async function getAvailabilityBlocks(): Promise<AvailabilityBlock[]> {
 // its own blocks. Keep this separate from the public booking read above.
 export async function getPhotographerAvailabilityBlocks(): Promise<AvailabilityBlock[]> {
   try {
-    const {data,error}=await createClient().from('availability').select('*').in('status',['blocked','off']).order('date').order('start_time');
+    const {data,error}=await createClient().from('availability').select('id,date,start_time,end_time,reason,created_at').in('status',['blocked','off']).order('date').order('start_time');
     if(!error&&data)return data as AvailabilityBlock[];
   } catch { /* Use the public/local fallback below. */ }
   return getAvailabilityBlocks();
 }
 
-export async function createAvailabilityBlock(input: Omit<AvailabilityBlock, 'id' | 'created_at'>) {
-  const range=`${input.start_time} - ${input.end_time}`;
-  const conflict=(await getAllBookings()).find((booking)=>booking.booking_date===input.date&&['confirmed','checked_in','shooting','completed'].includes(booking.status)&&rangesOverlap(range,booking.booking_time));
-  if(conflict)throw new Error(`Không thể chặn ca ${range}: khách ${conflict.customer_name} đã có booking được xác nhận.`);
-  const { data, error } = await createClient().from('availability').insert({ date:input.date,start_time:input.start_time,end_time:input.end_time,reason:input.reason,status:'blocked' }).select().single();
-  if (!error && data) return data as AvailabilityBlock;
-  if(error&&(error.code==='P0001'||/confirmed booking|booking.*confirmed/i.test(error.message)))throw new Error(`Không thể chặn ca ${range} vì đã có booking được xác nhận.`);
+export async function createAvailabilityBlocks(
+  inputs: Array<Omit<AvailabilityBlock, 'id' | 'created_at'>>,
+  existingBookings: BookingPhotoRecord[],
+) {
+  for (const input of inputs) {
+    const range = `${input.start_time} - ${input.end_time}`;
+    const conflict = existingBookings.find((booking) => booking.booking_date === input.date
+      && ['confirmed','checked_in','shooting','completed'].includes(booking.status)
+      && rangesOverlap(range, booking.booking_time));
+    if (conflict) throw new Error(`Không thể chặn ca ${range}: khách ${conflict.customer_name} đã có booking được xác nhận.`);
+  }
+  const payload = inputs.map((input) => ({
+    date: input.date,
+    start_time: input.start_time,
+    end_time: input.end_time,
+    reason: input.reason,
+    status: 'blocked' as const,
+  }));
+  const { data, error } = await createClient().from('availability').insert(payload).select('id,date,start_time,end_time,reason,created_at');
+  if (!error && data) return data as AvailabilityBlock[];
+  if (error && (error.code === 'P0001' || /confirmed booking|booking.*confirmed/i.test(error.message))) {
+    throw new Error('Không thể chặn lịch vì một trong các ca đã có booking được xác nhận.');
+  }
   if (!isDevelopment) throw error ?? new Error('Không thể chặn lịch.');
-  const block: AvailabilityBlock = { ...input, id: `block_${Date.now()}`, created_at: new Date().toISOString() };
-  const blocks = [block, ...getLocalAvailabilityBlocks()];
-  localStorage.setItem(AVAILABILITY_KEY, JSON.stringify(blocks));
-  return block;
+  const now = Date.now();
+  const blocks: AvailabilityBlock[] = inputs.map((input, index) => ({
+    ...input,
+    id: `block_${now}_${index}`,
+    created_at: new Date().toISOString(),
+  }));
+  localStorage.setItem(AVAILABILITY_KEY, JSON.stringify([...blocks, ...getLocalAvailabilityBlocks()]));
+  return blocks;
 }
 
 export async function removeAvailabilityBlock(id: string) {

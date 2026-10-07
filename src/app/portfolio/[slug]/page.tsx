@@ -6,7 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, MapPin, Minus, Plus, X } from 'lucide-react';
 import type { PortfolioAlbum, PortfolioImage } from '@/types';
-import { getPortfolioAlbum } from '@/lib/services/contentService';
+import { getAlbumBySlug } from '@/lib/services/contentService';
 import PublicSiteHeader from '@/components/PublicSiteHeader';
 import PublicMotionRoot from '@/components/motion/PublicMotionRoot';
 
@@ -22,7 +22,7 @@ export default function PortfolioAlbumPage({ params }: { params: Promise<{ slug:
   const pointers=useRef(new Map<number,{x:number;y:number}>());
   const pinch=useRef<{distance:number;zoom:number}|null>(null);
 
-  useEffect(() => { getPortfolioAlbum(slug).then(setAlbum); }, [slug]);
+  useEffect(() => { getAlbumBySlug(slug).then(setAlbum); }, [slug]);
   useEffect(()=>{
     if(!lightbox)return;
     const close=(event:KeyboardEvent)=>{if(event.key==='Escape')setLightbox(null)};

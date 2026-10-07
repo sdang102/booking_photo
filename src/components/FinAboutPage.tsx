@@ -5,14 +5,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import type { PortfolioAlbum } from '@/types';
-import { getPortfolioAlbums } from '@/lib/services/contentService';
+import { getAlbumCovers } from '@/lib/services/contentService';
 import PublicSiteHeader from './PublicSiteHeader';
 import { FinFooter, FinProcess, FinSelectedWorks } from './FinPhotoSections';
 import PublicMotionRoot from './motion/PublicMotionRoot';
 
 export default function FinAboutPage() {
   const [albums,setAlbums]=useState<PortfolioAlbum[]>([]);
-  useEffect(()=>{getPortfolioAlbums(true).then(setAlbums)},[]);
+  useEffect(()=>{getAlbumCovers({limit:4}).then(setAlbums)},[]);
   return <PublicMotionRoot><main className="fin-about-page fin-site">
     <PublicSiteHeader />
     <section className="fin-about-hero"><div className="fin-shell">

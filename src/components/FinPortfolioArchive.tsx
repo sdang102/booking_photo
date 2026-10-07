@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowRight, MapPin } from 'lucide-react';
 import type { PortfolioAlbum } from '@/types';
-import { getCategories, getPortfolioAlbums } from '@/lib/services/contentService';
+import { getAlbumCovers, getCategories } from '@/lib/services/contentService';
 import PublicSiteHeader from './PublicSiteHeader';
 import { FinFooter } from './FinPhotoSections';
 import PublicMotionRoot from './motion/PublicMotionRoot';
@@ -14,7 +14,7 @@ export default function FinPortfolioArchive() {
   const [albums, setAlbums] = useState<PortfolioAlbum[]>([]);
   const [categories, setCategories] = useState<Array<{slug:string;name:string}>>([]);
   const [filter, setFilter] = useState('all');
-  useEffect(() => { Promise.all([getPortfolioAlbums(true),getCategories()]).then(([items,filters]) => { setAlbums(items); setCategories(filters); }); }, []);
+  useEffect(() => { Promise.all([getAlbumCovers(),getCategories()]).then(([items,filters]) => { setAlbums(items); setCategories(filters); }); }, []);
   const visible = filter === 'all' ? albums : albums.filter(item => item.category === filter);
   const filters = [{id:'all',label:'Tất cả tác phẩm'},...categories.map(item=>({id:item.slug,label:item.name}))];
 
