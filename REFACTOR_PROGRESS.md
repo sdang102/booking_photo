@@ -148,7 +148,7 @@ Verification: `npm run lint` pass, `npx tsc --noEmit` pass, `npm run build` pass
 - Giai đoạn 4: tạo `supabase/migrations/202610070008_phase4_atomic_review_uploads.sql`; sửa review upload và admin album preview upload; commit `d2a0e47`.
 - Giai đoạn 5: sửa booking polling/pagination, lazy modal, AuthContext, motion và guest draft; tạo loading/error route files; commit `3d40742`.
 - Giai đoạn 6: xóa `src/lib/services/contentService.ts` sau grep toàn repo; sửa `bookingService` caller/actor branch; sửa `.env.example`; commit `1200bca`.
-- Giai đoạn 7: tạo các service/component files nêu trong mục Giai đoạn 7, biến `bookingService.ts` thành barrel, tách `BookingWizard` và `PublicReviewsPage`; commit kế tiếp sau khi hoàn tất kiểm tra.
+- Giai đoạn 7: tạo các service/component files nêu trong mục Giai đoạn 7, biến `bookingService.ts` thành barrel, tách `BookingWizard` và `PublicReviewsPage`; commit `23bd685`.
 - `PROJECT_AUDIT_REPORT.md` là file untracked có sẵn của người dùng; được giữ nguyên, không sửa và không commit.
 
 ### (b) Migration mới và lệnh chạy
@@ -187,7 +187,8 @@ Lệnh đề xuất: `supabase db push` (hoặc chạy các file trên trong Sup
 - Chưa gộp `/admin/portfolio` và `/admin/albums`, hoặc `MyBookingsModal` với `/my-bookings`, vì cần kiểm tra nghiệp vụ/UI riêng trước khi đổi.
 - `src/lib/devLogger.ts` và console trong CLI scripts là logging có chủ đích, không phải log debug thừa.
 - Nên kiểm chứng index bổ sung trước khi tạo bằng `EXPLAIN (ANALYZE, BUFFERS) ...` trên bản sao dữ liệu thật; không tự tạo trong run này.
-- Nếu cần bảo mật media tuyệt đối, chuyển `review-media` private và dùng signed URL; cân nhắc rate limit cho RPC/upload; tách tiếp các khối `globals.css` theo phạm vi khi có test visual.
+- Nếu cần bảo mật media tuyệt đối, chuyển `review-media` private và dùng signed URL; cân nhắc rate limit cho RPC/upload.
+- Kế hoạch tách `globals.css` sau: nhóm token/màu và typography; nhóm layout shell/navigation; nhóm booking/modal; nhóm portfolio/album; nhóm reviews; nhóm motion/utilities. Chỉ tách sau khi có visual regression để tránh thay đổi cascade.
 
 ### (f) Hoàn tác
 
