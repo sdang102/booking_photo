@@ -216,7 +216,8 @@ html[data-theme="dark"] {
 .site-nav__avatar span, .site-nav__avatar img { display: block; width: 100%; height: 100%; }
 .site-nav__avatar img { object-fit: cover; }
 .site-nav__avatar svg { width: 1.05rem; height: 1.05rem; margin: .6rem; }
-.site-nav__user-avatar, .site-nav__user-avatar img { display: block; width: 100%; height: 100%; }
+.site-nav__user-avatar { display: block; width: 100%; height: 100%; overflow: hidden; border-radius: 50%; }
+.site-nav__user-avatar img { display: block; width: 100%; height: 100%; }
 .site-nav__user-avatar img { object-fit: cover; border-radius: 50%; }
 .site-nav__user-avatar svg { width: 1rem; height: 1rem; }
 .site-nav__desktop a { position: relative; font-size: .875rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
@@ -477,7 +478,7 @@ body.nav-open { overflow: hidden; }
 .fin-about-hero > .fin-shell { display: grid; grid-template-columns: .85fr 1.15fr; align-items: center; gap: 5rem; }
 .fin-about-hero__copy h1 { margin: 0; font-family: var(--font-editorial); font-size: clamp(3.2rem, 6vw, 6rem); font-weight: 500; line-height: .94; letter-spacing: -.04em; }
 .fin-about-hero__copy > p:not(.fin-kicker) { margin: 1.5rem 0 2rem; color: #8e8f99; line-height: 1.85; }
-.fin-about-hero figure { position: relative; min-height: 670px; margin: 0; }
+.fin-about-hero figure { position: relative; min-height: 670px; margin: 0; overflow: hidden; }
 .fin-about-hero figure::after { position: absolute; inset: 0; content: ''; box-shadow: inset 0 0 0 1px rgb(241 238 233 / .12); }
 .fin-about-hero figure img { object-fit: cover; filter: saturate(.75); }
 .fin-about-statement { padding: 7rem 0; background: #1a1b22; }
@@ -487,7 +488,7 @@ body.nav-open { overflow: hidden; }
 .fin-about-statement p { margin: .5rem 0 0; color: #8e8f99; font-size: .85rem; line-height: 1.9; }
 .fin-about-profile { padding: 8rem 0; background: #0d0e12; }
 .fin-about-profile > .fin-shell { display: grid; grid-template-columns: .8fr 1.2fr; align-items: center; gap: 5rem; }
-.fin-about-profile figure { position: relative; min-height: 610px; margin: 0; }
+.fin-about-profile figure { position: relative; min-height: 610px; margin: 0; overflow: hidden; }
 .fin-about-profile figure img { object-fit: cover; filter: saturate(.65); }
 .fin-about-profile h2 { margin: 0; font-family: var(--font-editorial); font-size: clamp(2.5rem, 5vw, 5rem); font-weight: 500; line-height: 1; }
 .fin-about-profile p:not(.fin-kicker) { max-width: 620px; color: #8e8f99; line-height: 1.9; }
@@ -1659,3 +1660,17 @@ body.nav-open { overflow: hidden; }
   .fin-about-statement h2 { font-size: 1.18rem; }
   .fin-about-statement p { font-size: .45rem; }
 }
+
+/* Keep portfolio media inside its own frame on mobile and below the fixed
+   navigation layer. This also prevents portrait covers from widening the page
+   when Next/Image calculates the intrinsic size. */
+.fin-about-hero figure,
+.fin-about-profile figure,
+.fin-portfolio-story__images figure,
+.fin-project__media,
+.fin-work > div,
+.fin-craft__media { overflow: hidden; }
+.fin-about-hero figure img,
+.fin-about-profile figure img,
+.fin-portfolio-story__images figure img { display: block; max-width: 100%; }
+.site-nav { z-index: 2000; }
