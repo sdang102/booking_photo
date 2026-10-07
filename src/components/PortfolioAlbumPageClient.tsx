@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, MapPin, Minus, Plus, X } from 'lucide-react';
@@ -80,7 +81,7 @@ export default function PortfolioAlbumPage({ album }: { album: PortfolioAlbum })
             <Link href="/services">Xem Gói Chụp</Link>
           </div>
         </section>
-        {lightbox&&<div className="album-lightbox" role="dialog" aria-modal="true" aria-label={`Xem ảnh ${lightbox.alt}`} onClick={()=>setLightbox(null)}>
+        {lightbox&&typeof document!=='undefined'&&createPortal(<div className="album-lightbox" role="dialog" aria-modal="true" aria-label={`Xem ảnh ${lightbox.alt}`} onClick={()=>setLightbox(null)}>
           <div className="album-lightbox__toolbar" onClick={event=>event.stopPropagation()}>
             <button type="button" onClick={()=>changeZoom(zoom-.25)} disabled={zoom<=1} aria-label="Thu nhỏ ảnh"><Minus/></button>
             <span>{Math.round(zoom*100)}%</span>
@@ -95,7 +96,7 @@ export default function PortfolioAlbumPage({ album }: { album: PortfolioAlbum })
               onPointerUp={event=>{pointers.current.delete(event.pointerId);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);if(pointers.current.size<2)pinch.current=null;setDrag(null)}}
               onPointerCancel={event=>{pointers.current.delete(event.pointerId);pinch.current=null;setDrag(null)}}/>
           </div>
-        </div>}
+        </div>,document.body)}
       </main>
     </PublicMotionRoot>
   );

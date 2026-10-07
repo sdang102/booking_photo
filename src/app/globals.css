@@ -364,14 +364,14 @@ body.nav-open { overflow: hidden; }
 .album-frame img { display: block; object-fit: cover; box-shadow: 0 2rem 5rem -2rem var(--shadow-color); }
 .album-frame figcaption { position: absolute; z-index: 2; right: .7rem; bottom: .6rem; padding: .35rem .5rem; background: rgb(11 12 16 / .72); color: #f1eee9; font-size: .5rem; letter-spacing: .15em; }
 .album-frame:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 4px; }
-.album-lightbox { position: fixed; z-index: 10000; isolation: isolate; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgb(3 4 7 / .97); backdrop-filter: blur(12px); overscroll-behavior: contain; touch-action: none; }
-.album-lightbox__toolbar { position: absolute; z-index: 2; top: .75rem; left: .75rem; display: flex; align-items: center; gap: .15rem; border: 1px solid rgb(255 255 255 / .16); border-radius: 999px; padding: .18rem; background: rgb(20 21 27 / .9); color: white; }
+.album-lightbox { position: fixed; z-index: 100000; isolation: isolate; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgb(3 4 7 / .97); backdrop-filter: blur(12px); overscroll-behavior: contain; touch-action: none; }
+.album-lightbox__toolbar { position: absolute; z-index: 2; top: max(.75rem, env(safe-area-inset-top)); left: .75rem; display: flex; align-items: center; gap: .15rem; border: 1px solid rgb(255 255 255 / .16); border-radius: 999px; padding: .18rem; background: rgb(20 21 27 / .9); color: white; }
 .album-lightbox__toolbar button { display: grid; width: 1.9rem; height: 1.9rem; place-items: center; border-radius: 50%; transition: background-color .2s ease; }
 .album-lightbox__toolbar button:hover { background: rgb(255 255 255 / .12); }
 .album-lightbox__toolbar button:disabled { opacity: .35; }
 .album-lightbox__toolbar button svg { width: .8rem; height: .8rem; }
 .album-lightbox__toolbar span { min-width: 2.6rem; font-size: .58rem; text-align: center; }
-.album-lightbox__close { position: absolute; z-index: 2; top: .75rem; right: .75rem; display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border: 1px solid rgb(255 255 255 / .16); border-radius: 50%; background: rgb(20 21 27 / .9); color: white; }
+.album-lightbox__close { position: absolute; z-index: 2; top: max(.75rem, env(safe-area-inset-top)); right: .75rem; display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border: 1px solid rgb(255 255 255 / .16); border-radius: 50%; background: rgb(20 21 27 / .9); color: white; }
 .album-lightbox__close svg { width: .9rem; height: .9rem; }
 .album-lightbox__stage { display: grid; width: min(96vw,90rem); height: calc(100dvh - 2rem); place-items: center; overflow: hidden; }
 .album-lightbox__stage img { display: block; width: auto; height: auto; max-width: none; max-height: none; opacity: 0; object-fit: fill; transform-origin: center; cursor: zoom-in; touch-action: none; user-select: none; -webkit-user-drag: none; transition: opacity .12s ease, transform .2s ease; }
