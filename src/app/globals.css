@@ -1590,3 +1590,72 @@ body.nav-open { overflow: hidden; }
   .fin-portfolio-story > .fin-shell { gap: .5rem; }
   .fin-portfolio-story h2 { font-size: 1.45rem; }
 }
+
+/* Mobile composition follows the wide reference layouts: keep the four-step
+   process, three-column galleries and split portfolio sections visible. */
+@media (max-width: 700px) {
+  .fin-craft__grid, .fin-archive__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
+  .fin-craft__media { height: 180px; }
+  .fin-archive__grid .fin-project__media, .fin-archive__grid .fin-project--0 .fin-project__media, .fin-archive__grid .fin-project--3 .fin-project__media { height: 185px; }
+  .fin-archive__grid .fin-project__copy { padding: .55rem; }
+  .fin-archive__grid .fin-project__copy h2 { margin: .3rem 0; font-size: .78rem; }
+  .fin-archive__grid .fin-project__copy p { font-size: .4rem; }
+  .fin-craft h3 { font-size: .82rem; }
+  .fin-craft article > p { font-size: .52rem; }
+  .fin-craft article > a { font-size: .44rem; }
+
+  .fin-works__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, 185px); gap: .4rem; }
+  .fin-work--1, .fin-work--4 { grid-column: auto; grid-row: auto; }
+  .fin-work { min-height: 0; }
+  .fin-work > span, .fin-work > h3, .fin-work > p { right: .45rem; left: .45rem; }
+  .fin-work > span { bottom: 3rem; font-size: .4rem; }
+  .fin-work h3 { bottom: 1.15rem; font-size: .78rem; }
+  .fin-work > p { bottom: .45rem; font-size: .38rem; }
+
+  .fin-process ol { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .fin-process li, .fin-process li:nth-child(2) { min-height: 145px; padding: .55rem .45rem; border-right: 1px solid rgb(142 143 153 / .18); }
+  .fin-process li:nth-child(n + 3) { border-top: 1px solid rgb(142 143 153 / .18); }
+  .fin-process li > strong { font-size: 1.35rem; }
+  .fin-process h3 { margin: .8rem 0 .3rem; font-size: .67rem; line-height: 1.05; }
+  .fin-process li p { font-size: .44rem; line-height: 1.35; }
+
+  .fin-compare { padding: 3.25rem 0; }
+  .fin-compare > .fin-shell { width: 100%; overflow: visible; padding-inline: .6rem; box-sizing: border-box; }
+  .fin-compare__table { width: 100%; min-width: 0; }
+  .fin-compare__row { grid-template-columns: 1.15fr repeat(3, minmax(0, 1fr)); }
+  .fin-compare__row > * { min-width: 0; padding: .65rem .22rem; font-size: .48rem; line-height: 1.25; overflow-wrap: anywhere; }
+  .fin-compare__head > strong { font-size: .47rem; }
+
+  .fin-about-hero > .fin-shell, .fin-about-profile > .fin-shell { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: start; gap: .65rem; }
+  .fin-about-hero, .fin-about-profile { padding: 3.5rem 0; }
+  .fin-about-hero__copy h1 { font-size: clamp(1.65rem, 7.4vw, 2.8rem); line-height: .96; }
+  .fin-about-hero__copy > p:not(.fin-kicker), .fin-about-profile p:not(.fin-kicker) { font-size: .58rem; line-height: 1.55; }
+  .fin-about-hero figure { min-height: 300px; }
+  .fin-about-hero__copy .fin-button { width: 100%; min-height: 2.35rem; padding: .5rem; font-size: .46rem; }
+  .fin-about-statement { padding: 3.5rem 0; }
+  .fin-about-statement > .fin-shell { grid-template-columns: minmax(1.7rem, .2fr) minmax(0, 1fr) minmax(0, .7fr); align-items: start; gap: .55rem; }
+  .fin-about-statement span { font-size: 1.5rem; }
+  .fin-about-statement h2 { font-size: clamp(1.3rem, 6.5vw, 2.2rem); line-height: 1.02; }
+  .fin-about-statement p { font-size: .54rem; line-height: 1.55; }
+  .fin-about-profile figure { min-height: 310px; }
+  .fin-about-profile h2 { font-size: clamp(1.45rem, 7vw, 2.6rem); }
+  .fin-about-profile dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-top: 1rem; }
+  .fin-about-profile dt { font-size: 1.05rem; }
+  .fin-about-profile dd { font-size: .42rem; }
+
+  .fin-portfolio-story__images { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fin-portfolio-story__images figure, .fin-portfolio-story__images figure:first-child { height: 190px; }
+}
+
+@media (max-width: 390px) {
+  .fin-craft__media { height: 145px; }
+  .fin-craft h3 { font-size: .7rem; }
+  .fin-works__grid { grid-template-rows: repeat(2, 155px); }
+  .fin-process li, .fin-process li:nth-child(2) { min-height: 130px; padding-inline: .3rem; }
+  .fin-process h3 { font-size: .58rem; }
+  .fin-process li p { font-size: .38rem; }
+  .fin-compare__row > * { padding-inline: .14rem; font-size: .42rem; }
+  .fin-about-statement > .fin-shell { gap: .35rem; }
+  .fin-about-statement h2 { font-size: 1.18rem; }
+  .fin-about-statement p { font-size: .45rem; }
+}
