@@ -18,13 +18,26 @@ function save(reviews: ExperienceReview[]) { if (typeof window !== 'undefined') 
 function firstRelation<T>(value: T | T[] | null | undefined): T | undefined { return Array.isArray(value) ? value[0] : value ?? undefined; }
 
 async function reviewMedia(reviewIds: string[]) {
-  if (!reviewIds.length) return new Map<string, string[]>();
+  if (!reviewIds.length) return new Map<string, { thumbnails: string[]; full: string[] }>();
   try {
-    const { data } = await createClient().from('review_images').select('review_id,image_url,display_order').in('review_id', reviewIds).order('display_order');
-    const result = new Map<string, string[]>();
-    (data ?? []).forEach((row) => { if (row.review_id && row.image_url) result.set(row.review_id, [...(result.get(row.review_id) ?? []), row.image_url]); });
+    const client = createClient();
+    let { data, error } = await client.from('review_images').select('review_id,image_url,thumb_url,display_order').in('review_id', reviewIds).order('display_order');
+    if (error) {
+      const legacy = await client.from('review_images').select('review_id,image_url,display_order').in('review_id', reviewIds).order('display_order');
+      data = legacy.data?.map((row) => ({ ...row, thumb_url: null })) ?? null;
+      error = legacy.error;
+    }
+    if (error) return new Map<string, { thumbnails: string[]; full: string[] }>();
+    const result = new Map<string, { thumbnails: string[]; full: string[] }>();
+    (data ?? []).forEach((row) => {
+      if (!row.review_id || !row.image_url) return;
+      const current = result.get(row.review_id) ?? { thumbnails: [], full: [] };
+      current.thumbnails.push(row.thumb_url || row.image_url);
+      current.full.push(row.image_url);
+      result.set(row.review_id, current);
+    });
     return result;
-  } catch { return new Map<string, string[]>(); }
+  } catch { return new Map<string, { thumbnails: string[]; full: string[] }>(); }
 }
 
 async function reviewAuthors(userIds: string[]) {
@@ -76,7 +89,7 @@ export async function getReviews(options: { publicOnly?: boolean; featuredFirst?
         customer_name: booking?.customer_name ?? 'Khách hàng', rating: row.rating, comment: row.comment,
         service_title: booking?.service_name_snapshot ?? '', portfolio_slug: album?.slug,
         avatar_url: row.user_id ? authors.get(row.user_id) : undefined,
-        photos: media.get(row.id) ?? [], likes: likes.get(row.id) ?? 0,
+        photos: media.get(row.id)?.thumbnails ?? [], photo_urls: media.get(row.id)?.full ?? [], likes: likes.get(row.id) ?? 0,
         is_public: row.is_public, is_featured: row.is_featured, created_at: row.created_at, updated_at: row.updated_at };
       }) as ExperienceReview[];
     }
@@ -170,10 +183,11 @@ async function uploadReviewPhotos(reviewId: string, files: File[], userId?: stri
   const uploaded: Array<{ url: string; path: string }> = [];
   try {
     for (const [index, file] of files.slice(0, 5).entries()) {
-      const prepared = await prepareImage(file, { maxDimension: 1800, quality: 0.84 });
+      const prepared = await prepareImage(file, { maxDimension: 1800, thumbnailDimension: 640, quality: 0.84 });
       const image = await uploadPreparedImage(prepared, file.name, { bucket: 'review-media', folder: userId });
       uploaded.push({ url: image.url, path: image.path });
-      const { error } = await supabase.from('review_images').insert({ review_id: reviewId, user_id: userId, image_url: image.url, storage_path: image.path, display_order: index });
+      if (image.thumbnailPath) uploaded.push({ url: image.thumbnailUrl ?? image.url, path: image.thumbnailPath });
+      const { error } = await supabase.from('review_images').insert({ review_id: reviewId, user_id: userId, image_url: image.url, storage_path: image.path, thumb_url: image.thumbnailUrl, thumb_path: image.thumbnailPath, display_order: index });
       if (error) throw error;
     }
   } catch {

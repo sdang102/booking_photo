@@ -55,6 +55,8 @@ export interface ExperienceReview {
   customer_name: string;
   avatar_url?: string;
   photos?: string[];
+  /** Full-resolution URLs used only when the review detail is opened. */
+  photo_urls?: string[];
   likes?: number;
   rating: number;
   comment: string;
@@ -122,6 +124,7 @@ export interface UserProfile {
   full_name: string;
   phone?: string;
   avatar_url?: string;
+  avatar_path?: string;
   roles: AppRole[];
 }
 

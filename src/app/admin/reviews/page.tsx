@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @next/next/no-img-element -- tiny admin review avatars are fixed-size and intentionally not optimized. */
+
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff, Star, Trash2 } from 'lucide-react';
 import { deleteReview, getReviews, updateReviewModeration } from '@/lib/services/reviewService';
@@ -59,7 +61,7 @@ export default function AdminReviewsPage() {
       {reviews.map((review) => <article key={review.id} className="rounded-2xl border border-sky-200 bg-white p-5">
         <div className="grid gap-5 lg:grid-cols-[1fr_auto]">
           <div>
-            <div className="flex flex-wrap items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-slate-100 text-sm font-bold text-amber-700">{review.avatar_url ? <img src={review.avatar_url} alt={`Ảnh đại diện của ${review.customer_name}`} className="h-full w-full object-cover" /> : review.customer_name.slice(0, 1)}</span><h2 className="font-bold">{review.customer_name}</h2><span className="flex text-amber-400">{Array.from({ length: review.rating }).map((_, index) => <Star key={index} className="h-3.5 w-3.5 fill-current" />)}</span><time className="text-xs text-slate-400">{new Date(review.created_at).toLocaleDateString('vi-VN')}</time></div>
+            <div className="flex flex-wrap items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-slate-100 text-sm font-bold text-amber-700">{review.avatar_url ? <img src={review.avatar_url} alt={`Ảnh đại diện của ${review.customer_name}`} width="40" height="40" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : review.customer_name.slice(0, 1)}</span><h2 className="font-bold">{review.customer_name}</h2><span className="flex text-amber-400">{Array.from({ length: review.rating }).map((_, index) => <Star key={index} className="h-3.5 w-3.5 fill-current" />)}</span><time className="text-xs text-slate-400">{new Date(review.created_at).toLocaleDateString('vi-VN')}</time></div>
             <p className="mt-3 text-sm leading-relaxed text-slate-600">{review.comment}</p>
             <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-slate-500"><span>Service: {review.service_title}</span><span>Booking: {review.booking_id}</span></div>
           </div>

@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @next/next/no-img-element -- avatar editor needs a local object URL for crop/drag preview. */
+
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type PointerEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { CalendarCheck2, KeyRound, Mail, Pencil, Phone, Save, UserRound } from 'lucide-react';
@@ -130,7 +132,7 @@ export default function Profile() {
 
         <div className="profile-avatar-editor mt-6">
           <div className="profile-avatar-editor__image">
-            {user?.avatar_url ? <img src={user.avatar_url} alt="Ảnh đại diện" /> : <UserRound aria-hidden="true" />}
+            {user?.avatar_url ? <img src={user.avatar_url} alt="Ảnh đại diện" width="160" height="160" loading="lazy" decoding="async" /> : <UserRound aria-hidden="true" />}
             <label className="profile-avatar-editor__pencil" title="Đổi ảnh đại diện">
               <Pencil aria-hidden="true" />
               <input type="file" accept="image/*" onChange={handleAvatar} disabled={avatarBusy} />
@@ -177,7 +179,7 @@ export default function Profile() {
           </div>
         </div>
       </section>
-      {crop && <div className="avatar-crop-backdrop" role="presentation"><section className="avatar-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-crop-title"><h2 id="avatar-crop-title">Cắt ảnh đại diện</h2><div className="avatar-crop-preview" onPointerDown={startCropDrag} onPointerMove={moveCropDrag} onPointerUp={stopCropDrag} onPointerCancel={stopCropDrag}><img src={crop.url} alt="Xem trước ảnh đại diện" style={{ transform: `translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})` }} /></div><p className="avatar-crop-hint">Kéo ảnh để căn trái, phải, lên hoặc xuống.</p><label className="avatar-crop-zoom">Thu phóng <input type="range" min="1" max="2.5" step=".05" value={cropZoom} onChange={(event) => setCropZoom(Number(event.target.value))} /></label><div className="avatar-crop-actions"><button type="button" onClick={cancelCrop}>Hủy</button><button type="button" onClick={() => { void applyAvatarCrop(); }} disabled={avatarBusy}>{avatarBusy ? 'Đang lưu...' : 'Dùng ảnh này'}</button></div></section></div>}
+      {crop && <div className="avatar-crop-backdrop" role="presentation"><section className="avatar-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-crop-title"><h2 id="avatar-crop-title">Cắt ảnh đại diện</h2><div className="avatar-crop-preview" onPointerDown={startCropDrag} onPointerMove={moveCropDrag} onPointerUp={stopCropDrag} onPointerCancel={stopCropDrag}><img src={crop.url} alt="Xem trước ảnh đại diện" width="512" height="512" decoding="async" style={{ transform: `translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})` }} /></div><p className="avatar-crop-hint">Kéo ảnh để căn trái, phải, lên hoặc xuống.</p><label className="avatar-crop-zoom">Thu phóng <input type="range" min="1" max="2.5" step=".05" value={cropZoom} onChange={(event) => setCropZoom(Number(event.target.value))} /></label><div className="avatar-crop-actions"><button type="button" onClick={cancelCrop}>Hủy</button><button type="button" onClick={() => { void applyAvatarCrop(); }} disabled={avatarBusy}>{avatarBusy ? 'Đang lưu...' : 'Dùng ảnh này'}</button></div></section></div>}
     </main>
   </RoleGuard>;
 }

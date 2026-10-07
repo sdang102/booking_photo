@@ -53,12 +53,32 @@ Estimated request/payload change:
 - Public reviews: all review/media/like rows → 12 reviews plus only their related rows per page.
 - My bookings review lookup: all reviews → only the user's booking IDs.
 
-Verification: `npm run lint` pass (9 pre-existing raw-image warnings), `npx tsc --noEmit` pass, `npm run build` pass. Local commit pending after progress update.
+Verification: `npm run lint` pass (9 pre-existing raw-image warnings), `npx tsc --noEmit` pass, `npm run build` pass. Committed locally as `perf: giai đoạn 2 - phân trang và giảm over-fetch`.
+
+## Giai đoạn 3 — Tối ưu ảnh
+
+Status: **hoàn tất**.
+
+Implemented:
+
+- Replaced paired mobile/desktop `<Image>` elements for album covers and album heroes with `getImageProps()` plus `<picture>`, so the browser selects one art-directed source instead of downloading both.
+- Kept the album hero eager with high fetch priority; gallery and archive images remain lazy.
+- Added `thumb_url` and `thumb_path` to review media in `202610070007_phase3_review_thumbnails.sql`, with an idempotent index and a storage visibility policy that covers both full and thumbnail paths.
+- Review uploads now generate a 640px WebP thumbnail while preserving the full image URL for the detail view. Reads fall back to the legacy `image_url` when the migration is not applied yet.
+- Added `avatar_path` tracking and best-effort cleanup of the previous avatar after a successful profile update; cleanup failure does not roll back the profile change.
+- Added fixed dimensions, lazy loading, async decoding, and rationale comments to intentionally retained small/user-generated raw images.
+- Added `sharp` as a dev dependency. The existing Base64 tool now reports counts and approximate bytes by table/column in dry-run mode; no data migration was executed.
+
+Estimated image/payload change:
+
+- Archive/section art-direction: one selected source per viewport instead of two DOM image requests.
+- Review cards: approximately 640px WebP thumbnails; full-size URLs are fetched only in the detail view.
+- Avatar replacement: old storage object is removed after the new DB pointer is committed.
+
+Verification: `npm run lint` pass, `npx tsc --noEmit` pass, `npm run build` pass. No real migration, deploy, or push was performed. Committed locally as `perf: giai đoạn 3 - tối ưu ảnh`.
 
 ## Các giai đoạn còn lại
 
-- Giai đoạn 2: giảm over-fetch và phân trang.
-- Giai đoạn 3: tối ưu ảnh.
 - Giai đoạn 4: upload không để rác.
 - Giai đoạn 5: giảm tải frontend.
 - Giai đoạn 6: dọn code thừa.

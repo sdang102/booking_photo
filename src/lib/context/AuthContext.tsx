@@ -58,27 +58,26 @@ async function profileFromSupabase(authUser: { id:string; email?:string; user_me
     if (!contextError && contextRow) {
       const row = contextRow as Record<string, unknown>;
       let avatarUrl = typeof row.avatar_url === 'string' ? row.avatar_url : undefined;
-      if (!avatarUrl) {
-        const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', authUser.id).maybeSingle();
-        avatarUrl = typeof avatarRow?.avatar_url === 'string' ? avatarRow.avatar_url : undefined;
-      }
+      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url,avatar_path').eq('id', authUser.id).maybeSingle();
+      if (!avatarUrl) avatarUrl = typeof avatarRow?.avatar_url === 'string' ? avatarRow.avatar_url : undefined;
       profile = {
         id: authUser.id,
         email: authUser.email || String(row.email || ''),
         full_name: String(row.full_name || authUser.user_metadata?.full_name || 'Khách hàng'),
         phone: String(row.phone || authUser.user_metadata?.phone || ''),
         avatar_url: avatarUrl,
+        avatar_path: typeof avatarRow?.avatar_path === 'string' ? avatarRow.avatar_path : undefined,
         roles: normalizeRoles(row.roles),
       };
     } else {
       // Backward-compatible while the Phase 1 migration is waiting to be applied.
       const [{ data }, { data: isAdmin }, { data: isPhotographer }] = await Promise.all([
-        supabase.from('profiles').select('full_name,email,phone,avatar_url').eq('id', authUser.id).maybeSingle(),
+        supabase.from('profiles').select('full_name,email,phone,avatar_url,avatar_path').eq('id', authUser.id).maybeSingle(),
         supabase.rpc('has_role', { required_role: 'admin' }),
         supabase.rpc('has_role', { required_role: 'photographer' }),
       ]);
       const dbRoles: AppRole[] = [isAdmin && 'admin', isPhotographer && 'photographer'].filter((role): role is AppRole => Boolean(role));
-      profile = { id:authUser.id,email:authUser.email || data?.email || '',full_name:data?.full_name || String(authUser.user_metadata?.full_name || 'Khách hàng'),phone:data?.phone || String(authUser.user_metadata?.phone || ''),avatar_url:data?.avatar_url || undefined,roles:dbRoles.length?normalizeRoles(dbRoles):rolesFromAuthMetadata(authUser.app_metadata,authUser.user_metadata) };
+      profile = { id:authUser.id,email:authUser.email || data?.email || '',full_name:data?.full_name || String(authUser.user_metadata?.full_name || 'Khách hàng'),phone:data?.phone || String(authUser.user_metadata?.phone || ''),avatar_url:data?.avatar_url || undefined,avatar_path:data?.avatar_path || undefined,roles:dbRoles.length?normalizeRoles(dbRoles):rolesFromAuthMetadata(authUser.app_metadata,authUser.user_metadata) };
     }
     profileCache = { userId: authUser.id, value: profile, expiresAt: Date.now() + PROFILE_CACHE_MS };
     return profile;
@@ -224,14 +223,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateAvatar = async (file: File): Promise<AuthResult> => {
     if (!user) return { success: false, message: 'Vui lòng đăng nhập lại để đổi ảnh đại diện.' };
     try {
+      const supabase = createClient();
+      const { data: previousRow } = await supabase.from('profiles').select('avatar_path').eq('id', user.id).maybeSingle();
+      const previousAvatarPath = previousRow?.avatar_path || user.avatar_path;
       const prepared = await prepareImage(file, { maxDimension: 512, quality: 0.82 });
       const uploaded = await uploadPreparedImage(prepared, file.name, { bucket: 'avatars', folder: user.id });
-      const { error } = await createClient().from('profiles').update({ avatar_url: uploaded.url }).eq('id', user.id);
+      const { error } = await supabase.from('profiles').update({ avatar_url: uploaded.url, avatar_path: uploaded.path }).eq('id', user.id);
       if (error) {
         await removeStorageImages('avatars', [uploaded.path]);
         return { success: false, message: error.message || 'Không thể lưu ảnh đại diện.' };
       }
-      const nextUser = { ...user, avatar_url: uploaded.url };
+      if (previousAvatarPath && previousAvatarPath !== uploaded.path) {
+        try { await removeStorageImages('avatars', [previousAvatarPath]); } catch { /* A stale object must not undo a successful profile update. */ }
+      }
+      const nextUser = { ...user, avatar_url: uploaded.url, avatar_path: uploaded.path };
       setUser(nextUser);
       profileCache = { userId: user.id, value: nextUser, expiresAt: Date.now() + PROFILE_CACHE_MS };
       return { success: true, message: 'Đã cập nhật ảnh đại diện.' };

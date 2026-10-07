@@ -299,20 +299,31 @@ async function enrichReviewRows(client: ReturnType<typeof publicClient>, data: R
   if (!data.length) return [];
   const reviewIds = data.map((row) => row.id);
   const userIds = data.map((row) => row.user_id).filter((id): id is string => Boolean(id));
-  const media = new Map<string, string[]>();
+  const media = new Map<string, { thumbnails: string[]; full: string[] }>();
   const avatars = new Map<string, string>();
   const likes = new Map<string, number>();
   try {
     const [{ data: images }, { data: authors }, { data: likeCounts }] = await Promise.all([
-      client.from('review_images').select('review_id,image_url,display_order').in('review_id', reviewIds).order('display_order'),
+      (async () => {
+        const modern = await client.from('review_images').select('review_id,image_url,thumb_url,display_order').in('review_id', reviewIds).order('display_order');
+        if (!modern.error) return modern;
+        const legacy = await client.from('review_images').select('review_id,image_url,display_order').in('review_id', reviewIds).order('display_order');
+        return { ...legacy, data: legacy.data?.map((row) => ({ ...row, thumb_url: null })) ?? null };
+      })(),
       client.rpc('get_public_review_authors', { target_ids: userIds }),
       client.rpc('get_review_like_counts', { target_review_ids: reviewIds }),
     ]);
-    (images ?? []).forEach((image) => media.set(image.review_id, [...(media.get(image.review_id) ?? []), image.image_url]));
+    (images ?? []).forEach((image) => {
+      if (!image.review_id || !image.image_url) return;
+      const current = media.get(image.review_id) ?? { thumbnails: [], full: [] };
+      current.thumbnails.push(image.thumb_url || image.image_url);
+      current.full.push(image.image_url);
+      media.set(image.review_id, current);
+    });
     (authors ?? []).forEach((author: { id: string; avatar_url: string | null }) => { if (author.avatar_url) avatars.set(author.id, author.avatar_url); });
     (likeCounts ?? []).forEach((like: { review_id: string; like_count: number | string }) => { likes.set(like.review_id, Number(like.like_count ?? 0)); });
   } catch { /* Optional review media/avatar/like migrations may not exist yet. */ }
-  return data.map((row) => ({ ...mapReview(row), avatar_url: row.user_id ? avatars.get(row.user_id) : undefined, photos: media.get(row.id) ?? [], likes: likes.get(row.id) ?? 0 }));
+  return data.map((row) => ({ ...mapReview(row), avatar_url: row.user_id ? avatars.get(row.user_id) : undefined, photos: media.get(row.id)?.thumbnails ?? [], photo_urls: media.get(row.id)?.full ?? [], likes: likes.get(row.id) ?? 0 }));
 }
 
 async function queryReviewPage(cursor?: PublicReviewCursor | null, limit = PUBLIC_REVIEW_PAGE_SIZE): Promise<PublicReviewPage> {

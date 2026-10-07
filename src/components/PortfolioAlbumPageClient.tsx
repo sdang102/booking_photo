@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import Image from 'next/image';
+import Image, { getImageProps } from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, MapPin, Minus, Plus, X } from 'lucide-react';
 import type { PortfolioAlbum, PortfolioImage } from '@/types';
@@ -117,14 +117,37 @@ export default function PortfolioAlbumPage({
     </main>
   );
 
+  const heroDesktop = getImageProps({
+    src: album.cover_url,
+    alt: album.title,
+    width: 2400,
+    height: 1600,
+    quality: 80,
+    sizes: '100vw',
+    loading: 'eager',
+    fetchPriority: 'high',
+  });
+  const heroMobile = album.mobile_cover_url ? getImageProps({
+    src: album.mobile_cover_url,
+    alt: '',
+    width: 1200,
+    height: 1600,
+    quality: 78,
+    sizes: '100vw',
+    loading: 'eager',
+    fetchPriority: 'high',
+  }) : null;
+
   return (
     <PublicMotionRoot>
       <main className="fin-site album-page min-h-screen">
         <Link href="/portfolio" className="album-back-fixed"><ArrowLeft />Quay lại Bộ sưu tập</Link>
         <section className="album-hero" data-cinematic-section>
           <div className="album-hero-media" data-parallax="42">
-            {album.mobile_cover_url && <Image src={album.mobile_cover_url} alt="" fill sizes="100vw" className="album-hero-image album-hero-image--mobile" aria-hidden="true" />}
-            <Image src={album.cover_url} alt={album.title} fill sizes="100vw" preload quality={80} className="album-hero-image album-hero-image--desktop" />
+            <picture>
+              {heroMobile && <source media="(max-width:899px)" srcSet={heroMobile.props.srcSet} sizes={heroMobile.props.sizes} />}
+              <img {...heroDesktop.props} alt={heroDesktop.props.alt} className="album-hero-image" />
+            </picture>
           </div>
           <div className="album-hero-shade" />
           <div className="album-hero-copy" data-reveal>

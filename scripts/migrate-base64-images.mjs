@@ -31,8 +31,17 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefresh
 
 if (!args.has('--upload') && !args.has('--apply')) {
   const rows = await collectRows();
+  const byColumn = new Map();
+  for (const row of rows) {
+    const key = `${row.table}.${row.column}`;
+    const current = byColumn.get(key) ?? { count: 0, bytes: 0 };
+    current.count += 1;
+    current.bytes += row.bytes;
+    byColumn.set(key, current);
+  }
   console.log(`Dry-run: tìm thấy ${rows.length} ảnh Base64, tổng dữ liệu khoảng ${formatBytes(rows.reduce((sum, row) => sum + row.bytes, 0))}.`);
-  console.log('Không thay đổi database hoặc Storage. Dùng --upload để tạo manifest upload, sau đó --apply --manifest=... để cập nhật URL.');
+  for (const [column, summary] of byColumn) console.log(`- ${column}: ${summary.count} dòng, khoảng ${formatBytes(summary.bytes)}`);
+  console.log('Chế độ này chỉ đếm theo bảng/cột, không thay đổi database hoặc Storage. Không chạy --upload/--apply trong giai đoạn refactor này.');
   process.exit(0);
 }
 
