@@ -1159,7 +1159,7 @@ body.nav-open { overflow: hidden; }
   .site-nav .nav-icon--menu, .fin-site .site-nav .nav-icon--menu { display: none !important; }
   .site-nav__brand-group { gap: .45rem; }
   .site-nav .site-nav__user { display: flex !important; }
-  .site-nav .nav-icon--user { display: grid !important; width: 2.25rem; height: 2.25rem; overflow: hidden; padding: 0; }
+  .site-nav .nav-icon--user, .site-nav .nav-icon--login { display: grid !important; width: 2.25rem; height: 2.25rem; overflow: hidden; padding: 0; }
 }
 
 @media (max-width: 900px) {
