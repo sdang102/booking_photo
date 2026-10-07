@@ -259,12 +259,22 @@ async function queryReviews(): Promise<ExperienceReview[]> {
       .order('is_featured', { ascending: false })
       .order('created_at', { ascending: false });
     if (!error && data) {
+      const reviewIds = data.map((row) => row.id);
+      const userIds = data.map((row) => row.user_id).filter((id): id is string => Boolean(id));
       const media = new Map<string, string[]>();
+      const avatars = new Map<string, string>();
+      const likes = new Map<string, number>();
       try {
-        const { data: images } = await client.from('review_images').select('review_id,image_url,display_order').in('review_id', data.map((row) => row.id)).order('display_order');
+        const [{ data: images }, { data: authors }, { data: likeRows }] = await Promise.all([
+          client.from('review_images').select('review_id,image_url,display_order').in('review_id', reviewIds).order('display_order'),
+          client.rpc('get_public_review_authors', { target_ids: userIds }),
+          client.from('review_likes').select('review_id').in('review_id', reviewIds),
+        ]);
         (images ?? []).forEach((image) => media.set(image.review_id, [...(media.get(image.review_id) ?? []), image.image_url]));
-      } catch { /* Optional review media migration may not exist yet. */ }
-      return data.map((row) => ({ ...mapReview(row), photos: media.get(row.id) ?? [], likes: 0 }));
+        (authors ?? []).forEach((author: { id: string; avatar_url: string | null }) => { if (author.avatar_url) avatars.set(author.id, author.avatar_url); });
+        (likeRows ?? []).forEach((like) => likes.set(like.review_id, (likes.get(like.review_id) ?? 0) + 1));
+      } catch { /* Optional review media/avatar/like migrations may not exist yet. */ }
+      return data.map((row) => ({ ...mapReview(row), avatar_url: row.user_id ? avatars.get(row.user_id) : undefined, photos: media.get(row.id) ?? [], likes: likes.get(row.id) ?? 0 }));
     }
   } catch {
     // Fall through to local fixtures in development.
