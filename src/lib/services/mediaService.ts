@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
-import { base64ByteSize, imageFileToBase64 } from '@/lib/imageBase64';
+import { removeStorageImages, uploadImageFile } from '@/lib/services/imageUploadService';
 
 export type MediaCategory='homepage'|'portfolio'|'services'|'locations'|'avatar'|'other';
 export interface MediaRecord{id:string;bucket:string;storage_path:string;public_url?:string;filename:string;mime_type?:string;size_bytes?:number;category:MediaCategory;created_at:string}
@@ -13,14 +13,15 @@ export async function listMedia(search=''){
 
 export async function uploadMedia(files:File[],category:MediaCategory){
   const supabase=createClient();const results:MediaRecord[]=[];
+  const bucket=category==='portfolio'?'portfolio':category==='services'?'services':category==='locations'?'locations':category==='avatar'?'avatars':'site-assets';
   for(const file of files){
-    const base64=await imageFileToBase64(file);
+    const uploaded=await uploadImageFile(file,{bucket,folder:`media/${category}`});
     const{data,error}=await supabase.from('media').insert({
-      bucket:'database',storage_path:`base64/${crypto.randomUUID()}`,public_url:base64,
-      filename:file.name,mime_type:'image/webp',size_bytes:base64ByteSize(base64),category,
-      metadata:{source_type:file.type,source_size:file.size,encoding:'base64'},
+      bucket,storage_path:uploaded.path,public_url:uploaded.url,
+      filename:file.name,mime_type:uploaded.mimeType,size_bytes:uploaded.sizeBytes,category,
+      metadata:{source_type:file.type,source_size:file.size,encoding:'storage-webp',width:uploaded.width,height:uploaded.height},
     }).select('id,bucket,storage_path,public_url,filename,mime_type,size_bytes,category,created_at').single();
-    if(error)throw error;
+    if(error){await removeStorageImages(bucket,[uploaded.path]);throw new Error(`Không thể lưu thông tin ảnh: ${error.message}`)}
     results.push(data as MediaRecord);
   }
   return results;

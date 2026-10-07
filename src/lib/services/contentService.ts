@@ -7,7 +7,8 @@ interface AlbumCoverOptions {
 }
 
 const ALBUM_COVER_SELECT = 'id,slug,title,shoot_date,location_text,cover_image,cover_image_mobile,display_order,is_public,categories(slug),locations(name)';
-const ALBUM_DETAIL_SELECT = `${ALBUM_COVER_SELECT},portfolio_images(id,image_url,alt_text,width,height,display_order)`;
+const ALBUM_DETAIL_SELECT = `${ALBUM_COVER_SELECT},portfolio_images(id,image_url,storage_path,thumb_url,thumb_path,alt_text,width,height,display_order)`;
+const ALBUM_DETAIL_SELECT_LEGACY = `${ALBUM_COVER_SELECT},portfolio_images(id,image_url,storage_path,alt_text,width,height,display_order)`;
 
 interface AlbumQueryRow {
   id: string;
@@ -49,19 +50,34 @@ export async function getAlbumCovers({ publicOnly = true, limit }: AlbumCoverOpt
 }
 
 export async function getAlbumBySlug(slug: string): Promise<PortfolioAlbum | null> {
-  const { data, error } = await createClient()
+  const client = createClient();
+  const primary = await client
     .from('portfolio_albums')
     .select(ALBUM_DETAIL_SELECT)
     .eq('slug', slug)
     .eq('is_public', true)
     .order('display_order', { referencedTable: 'portfolio_images', ascending: true })
     .single();
+  let data: unknown = primary.data;
+  let error = primary.error;
+  if (error && /thumb_url|thumb_path|column/i.test(error.message)) {
+    const legacy = await client
+      .from('portfolio_albums')
+      .select(ALBUM_DETAIL_SELECT_LEGACY)
+      .eq('slug', slug)
+      .eq('is_public', true)
+      .order('display_order', { referencedTable: 'portfolio_images', ascending: true })
+      .single();
+    data = legacy.data;
+    error = legacy.error;
+  }
   if (error || !data) return null;
   const row = data as unknown as AlbumQueryRow;
   const album = mapAlbumCover(row);
   album.images = (row.portfolio_images ?? []).map((image) => ({
     id: String(image.id),
     url: String(image.image_url),
+    thumbnail_url: image.thumb_url ? String(image.thumb_url) : String(image.image_url),
     alt: String(image.alt_text ?? row.title),
     width: Number(image.width) || 1200,
     height: Number(image.height) || 800,

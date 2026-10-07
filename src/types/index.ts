@@ -19,6 +19,7 @@ export type PortfolioCategory = 'couple' | 'portrait' | 'pre-wedding' | 'family'
 export interface PortfolioImage {
   id: string;
   url: string;
+  thumbnail_url?: string;
   alt: string;
   width: number;
   height: number;

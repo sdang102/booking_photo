@@ -18,6 +18,9 @@ const supabaseImagePattern = (() => {
 
 const nextConfig: NextConfig = {
   images: {
+    formats: ["image/avif", "image/webp"],
+    qualities: [70, 75, 80, 82, 90],
+    minimumCacheTTL: 2592000,
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
       ...supabaseImagePattern,
