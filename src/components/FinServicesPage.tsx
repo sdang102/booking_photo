@@ -1,16 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Check, Clock3, Images, Plus } from 'lucide-react';
 import type { Service, ServiceAddon } from '@/types';
 import { MOCK_SERVICES } from '@/lib/data/mockData';
-import { getServices } from '@/lib/services/bookingService';
-import { getServiceAddons } from '@/lib/services/contentService';
 import { formatVND } from './ServiceCard';
-import PublicSiteHeader from './PublicSiteHeader';
-import { FinFooter } from './FinPhotoSections';
 import PublicMotionRoot from './motion/PublicMotionRoot';
 
 const defaultExtras: ServiceAddon[] = [
@@ -25,15 +21,13 @@ const faqs = [
   ['Tôi có thể mang theo trang phục cá nhân không?', 'Có. FIN PHOTO sẽ tư vấn cách phối và ưu tiên những trang phục thể hiện đúng phong cách của bạn.'],
 ];
 
-export default function FinServicesPage() {
-  const [services, setServices] = useState<Service[]>(MOCK_SERVICES);
-  const [extras, setExtras] = useState<ServiceAddon[]>(defaultExtras);
+export default function FinServicesPage({ initialServices = MOCK_SERVICES, initialExtras = defaultExtras }: { initialServices?: Service[]; initialExtras?: ServiceAddon[] }) {
+  const [services] = useState<Service[]>(initialServices);
+  const [extras] = useState<ServiceAddon[]>(initialExtras);
   const [open, setOpen] = useState(0);
-  useEffect(() => { Promise.all([getServices(),getServiceAddons()]).then(([items,addons]) => { if (items.length) setServices(items); if(addons.length)setExtras(addons); }); }, []);
   const plans = services.slice(0, 3);
 
   return <PublicMotionRoot><main className="fin-services-page fin-site">
-    <PublicSiteHeader />
     <section className="fin-services-hero"><div className="fin-shell"><p className="fin-kicker"><span /> Gói chụp & đầu tư</p><h1>Đầu tư cho những ký ức<br /><em>vượt thời gian.</em></h1><p>Mỗi khuôn hình là một tác phẩm được chuẩn bị kỹ từ ý tưởng, ánh sáng đến phần hậu kỳ thủ công.</p></div></section>
     <section className="fin-services-plans"><div className="fin-shell"><div className="fin-services-plans__grid">{plans.map((service, index) => <article key={service.id} className={index === 1 ? 'is-featured' : ''}>
       <div className="fin-services-card__top"><span>Gói 0{index + 1}</span>{index === 1 && <b>Được yêu thích</b>}</div><h2>{service.title}</h2><p>{service.description}</p><div className="fin-services-card__price"><small>Chi phí đầu tư</small><strong>{formatVND(service.price)}</strong></div>
@@ -51,6 +45,5 @@ export default function FinServicesPage() {
     <section className="fin-extras"><div className="fin-shell"><header className="fin-heading fin-heading--split"><div><p className="fin-kicker"><span /> Tùy biến trải nghiệm</p><h2>Dịch vụ bổ sung.</h2></div><p>Linh hoạt nâng cấp các chi tiết sáng tạo để buổi chụp trở thành một trải nghiệm trọn vẹn hơn.</p></header><div>{extras.map(item => <article key={item.id}><Plus /><h3>{item.title}</h3><p>{item.description}</p><strong>{item.price_label||formatVND(item.price)}</strong></article>)}</div></div></section>
     <section className="fin-service-faq"><div className="fin-shell"><header><p className="fin-kicker"><span /> Giải đáp thắc mắc</p><h2>Những câu hỏi<br />thường gặp.</h2></header><div>{faqs.map(([question, answer], index) => <article className={open === index ? 'is-open' : ''} key={question}><button onClick={() => setOpen(open === index ? -1 : index)}><span>{question}</span><Plus /></button><p>{answer}</p></article>)}</div></div></section>
     <section className="fin-service-cta"><div className="fin-shell"><div><p className="fin-kicker"><span /> Direct booking</p><h2>Sẵn sàng cho kiệt tác của riêng bạn?</h2><p>Chia sẻ ý tưởng và thời gian mong muốn. FIN PHOTO sẽ tư vấn gói chụp phù hợp nhất.</p></div><Link href="/booking">Gửi yêu cầu giữ lịch <ArrowRight /></Link></div></section>
-    <FinFooter />
   </main></PublicMotionRoot>;
 }

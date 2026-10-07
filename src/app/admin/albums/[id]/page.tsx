@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { ImagePlus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { prepareImage, removeStorageImages, uploadPreparedImage, type PreparedImage } from '@/lib/services/imageUploadService';
+import { refreshPublicContent } from '@/lib/client/revalidatePublicContent';
 
 type ImageRow={id:string;image_url:string;storage_path:string|null;thumb_url:string|null;thumb_path:string|null;alt_text:string|null;caption:string|null;width:number|null;height:number|null;display_order:number};
 type PendingImage={key:string;name:string;previewUrl:string;prepared:PreparedImage};
@@ -39,6 +40,7 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   },[id]);
 
   useEffect(()=>{void load()},[load]);
+  useEffect(()=>{if(images.length)void refreshPublicContent()},[images]);
 
   const choose=async(files?:FileList|null)=>{
     const selected=Array.from(files??[]);if(!selected.length)return;

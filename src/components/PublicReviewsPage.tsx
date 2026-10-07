@@ -1,29 +1,23 @@
 'use client';
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, CheckCircle2, ExternalLink, Quote, Star, X } from 'lucide-react';
 import { Stars } from '@/components/ReviewCard';
-import { getReviews, reviewSummary } from '@/lib/services/reviewService';
+import { reviewSummary } from '@/lib/services/reviewService';
 import type { ExperienceReview } from '@/types';
 import PublicMotionRoot from '@/components/motion/PublicMotionRoot';
-import PublicSiteHeader from '@/components/PublicSiteHeader';
-import { FinFooter } from '@/components/FinPhotoSections';
-import { MOCK_REVIEWS } from '@/lib/data/mockData';
 
-export default function ReviewsPage() {
-  const [reviews, setReviews] = useState<ExperienceReview[]>(MOCK_REVIEWS);
+export default function ReviewsPage({ initialReviews }: { initialReviews: ExperienceReview[] }) {
+  const [reviews] = useState<ExperienceReview[]>(initialReviews);
   const [rating, setRating] = useState(0);
   const [selected, setSelected] = useState<ExperienceReview | null>(null);
 
   useEffect(() => {
-    getReviews({ publicOnly: true, featuredFirst: true }).then((items) => {
-      const visibleItems = items.length ? items : MOCK_REVIEWS;
-      setReviews(visibleItems);
-      const id = window.location.hash.replace('#review-', '');
-      if (id) setSelected(visibleItems.find((item) => item.id === id) ?? null);
-    });
-  }, []);
+    const id = window.location.hash.replace('#review-', '');
+    if (id) setSelected(initialReviews.find((item) => item.id === id) ?? null);
+  }, [initialReviews]);
 
   useEffect(() => {
     if (!selected) return;
@@ -52,7 +46,6 @@ export default function ReviewsPage() {
   };
 
   return <PublicMotionRoot><main className="fin-reviews-page fin-site">
-    <PublicSiteHeader />
     <section className="fin-review-hero"><div className="fin-shell">
       <div className="fin-review-hero__copy"><p className="fin-kicker"><span /> Cảm nhận đã xác thực</p><h1>Trải nghiệm thật.<br /><em>Câu chuyện thật.</em></h1><p>Những chia sẻ từ khách hàng đã hoàn thành buổi chụp cùng FIN PHOTO — minh bạch, nguyên bản và không chỉnh sửa nội dung.</p></div>
       <aside className="fin-review-score" aria-label={`Điểm đánh giá trung bình ${summary.averageRating} trên 5`}><div><strong>{summary.averageRating.toFixed(1)}</strong><span>/ 5.0</span></div><Stars rating={Math.round(summary.averageRating)} size="lg" /><p>{summary.totalReviews} trải nghiệm đã xác thực</p><small><CheckCircle2 /> 100% từ khách hàng đã chụp</small></aside>
@@ -75,7 +68,6 @@ export default function ReviewsPage() {
       {!filtered.length && <p className="fin-review-empty">Chưa có đánh giá phù hợp với bộ lọc này.</p>}
     </div></section>
     <section className="fin-review-cta"><div className="fin-shell"><div><p className="fin-kicker"><span /> Trải nghiệm của riêng bạn</p><h2>Sẵn sàng tạo nên câu chuyện tiếp theo?</h2></div><Link href="/booking">Đặt lịch cùng FIN PHOTO <ArrowRight /></Link></div></section>
-    <FinFooter />
   </main>
 
   {selected && <div className="review-detail" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && closeReview()}><section role="dialog" aria-modal="true" aria-labelledby="review-detail-title">

@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { ImagePlus, Images, Plus, Trash2, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { uploadImageFile } from '@/lib/services/imageUploadService';
+import { refreshPublicContent } from '@/lib/client/revalidatePublicContent';
 
 type Row=Record<string,unknown>&{id?:string};
 type Field={key:string;label:string;kind?:'number'|'textarea'|'checkbox'|'json'|'image'|'category';required?:boolean};
@@ -32,6 +33,7 @@ export default function AdminCrudPanel({section}:{section:string}){
   const load=useCallback(async(pageNumber=0)=>{if(!config)return;const columns=['id',...config.fields.map(field=>field.key),config.archive].filter((value,index,list):value is string=>Boolean(value)&&list.indexOf(value)===index).join(',');let query=createClient().from(config.table).select(columns).order('display_order',{ascending:true});query=config.singleton?query.limit(1):query.range(pageNumber*PAGE_SIZE,(pageNumber+1)*PAGE_SIZE-1);const{data,error}=await query;if(error)setMsg(error.message);else{const next=(data??[])as unknown as Row[];setRows(current=>pageNumber===0?next:[...current,...next]);setPage(pageNumber);setHasMore(!config.singleton&&next.length===PAGE_SIZE)}},[config]);
   useEffect(()=>{void load()},[load]);
   useEffect(()=>{if(config?.fields.some(field=>field.kind==='category'))void createClient().from('categories').select('id,name').eq('is_active',true).order('display_order').then(({data})=>setCategories(data??[]))},[config]);
+  useEffect(()=>{if(rows.length)void refreshPublicContent()},[rows]);
   if(!config)return null;
 
   const save=async(event:FormEvent)=>{
@@ -44,7 +46,7 @@ export default function AdminCrudPanel({section}:{section:string}){
     }
     const query=edit.id?createClient().from(config.table).update(payload).eq('id',edit.id):createClient().from(config.table).insert(payload);
     const{error}=await query;
-    if(error)setMsg(error.message);else{setEdit(null);await load(0)}
+    if(error)setMsg(error.message);else{setEdit(null);await load(0);await refreshPublicContent()}
   };
   const archive=async(row:Row)=>{if(!config.archive||!row.id)return;const hidden=row[config.archive]===false;const action=hidden?'hiện lại':'ẩn/ngừng sử dụng';if(!confirm(`Bạn chắc chắn muốn ${action} “${rowLabel(row)}”?`))return;setMsg('');const{error}=await createClient().from(config.table).update({[config.archive]:hidden}).eq('id',row.id);if(error)setMsg(friendlyDatabaseError(error));else{setMsg(hidden?'Đã hiện lại mục này.':'Đã ẩn mục này.');await load(0)}};
   const remove=async(row:Row)=>{if(!row.id||config.singleton)return;const label=rowLabel(row);if(!confirm(`Xóa vĩnh viễn “${label}”?\n\nThao tác này không thể hoàn tác. Nếu mục đang được booking hoặc nội dung khác sử dụng, hệ thống sẽ từ chối xóa.`))return;setMsg('');setDeletingId(row.id);const{error}=await createClient().from(config.table).delete().eq('id',row.id);setDeletingId('');if(error)setMsg(friendlyDatabaseError(error));else{setRows(current=>current.filter(item=>item.id!==row.id));setMsg(`Đã xóa “${label}”.`)}};

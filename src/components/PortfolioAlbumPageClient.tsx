@@ -1,17 +1,14 @@
 'use client';
 
-import { use, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, MapPin, Minus, Plus, X } from 'lucide-react';
 import type { PortfolioAlbum, PortfolioImage } from '@/types';
-import { getAlbumBySlug } from '@/lib/services/contentService';
 import PublicSiteHeader from '@/components/PublicSiteHeader';
 import PublicMotionRoot from '@/components/motion/PublicMotionRoot';
 
-export default function PortfolioAlbumPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = use(params);
-  const [album, setAlbum] = useState<PortfolioAlbum | null>();
+export default function PortfolioAlbumPage({ album }: { album: PortfolioAlbum }) {
   const [lightbox,setLightbox]=useState<PortfolioImage|null>(null);
   const [zoom,setZoom]=useState(1);
   const [pan,setPan]=useState({x:0,y:0});
@@ -22,7 +19,6 @@ export default function PortfolioAlbumPage({ params }: { params: Promise<{ slug:
   const pointers=useRef(new Map<number,{x:number;y:number}>());
   const pinch=useRef<{distance:number;zoom:number}|null>(null);
 
-  useEffect(() => { getAlbumBySlug(slug).then((value)=>{setVisibleCount(18);setAlbum(value)}); }, [slug]);
   useEffect(()=>{
     if(!lightbox)return;
     const close=(event:KeyboardEvent)=>{if(event.key==='Escape')setLightbox(null)};
@@ -38,7 +34,6 @@ export default function PortfolioAlbumPage({ params }: { params: Promise<{ slug:
   if (album === undefined) return <main className="fin-site min-h-screen bg-background"><PublicSiteHeader /><div className="grid min-h-screen place-items-center">Đang tải album…</div></main>;
   if (!album) return (
     <main className="fin-site min-h-screen bg-background">
-      <PublicSiteHeader />
       <div className="grid min-h-screen place-items-center text-center">
         <div>
           <h1 className="text-2xl font-black">Album không tồn tại hoặc chưa công khai</h1>
@@ -51,7 +46,6 @@ export default function PortfolioAlbumPage({ params }: { params: Promise<{ slug:
   return (
     <PublicMotionRoot>
       <main className="fin-site album-page min-h-screen">
-        <PublicSiteHeader />
         <Link href="/portfolio" className="album-back-fixed"><ArrowLeft />Quay lại Bộ sưu tập</Link>
 
         <section className="album-hero" data-cinematic-section>

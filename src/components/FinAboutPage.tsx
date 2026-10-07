@@ -1,20 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import type { PortfolioAlbum } from '@/types';
-import { getAlbumCovers } from '@/lib/services/contentService';
-import PublicSiteHeader from './PublicSiteHeader';
-import { FinFooter, FinProcess, FinSelectedWorks } from './FinPhotoSections';
+import { FinProcess, FinSelectedWorks } from './FinPhotoSections';
 import PublicMotionRoot from './motion/PublicMotionRoot';
 
-export default function FinAboutPage() {
-  const [albums,setAlbums]=useState<PortfolioAlbum[]>([]);
-  useEffect(()=>{getAlbumCovers({limit:4}).then(setAlbums)},[]);
+export default function FinAboutPage({ albums = [] }: { albums?: PortfolioAlbum[] }) {
   return <PublicMotionRoot><main className="fin-about-page fin-site">
-    <PublicSiteHeader />
     <section className="fin-about-hero"><div className="fin-shell">
       <div className="fin-about-hero__copy"><p className="fin-kicker"><span /> Portfolio của tôi</p><h1>Mỗi khung hình là một cách tôi nhìn thế giới.</h1><p>FIN PHOTO là portfolio cá nhân ghi lại hành trình làm việc với ánh sáng, con người và những cảm xúc không thể dàn dựng lại lần thứ hai.</p><Link className="fin-button fin-button--gold" href="/portfolio">Xem bộ sưu tập <ArrowRight /></Link></div>
       <figure><Image src="/DSC07156.jpg" alt="Chân dung nhiếp ảnh gia FIN PHOTO bên biển" fill preload sizes="(max-width: 720px) 100vw, 50vw" /></figure>
@@ -24,6 +18,5 @@ export default function FinAboutPage() {
     <FinSelectedWorks albums={albums} />
     <FinProcess />
     <section className="fin-about-cta"><div className="fin-shell"><p className="fin-kicker"><span /> Cùng tạo nên một câu chuyện</p><h2>Nếu hình ảnh này chạm đến bạn, hãy bắt đầu một dự án riêng.</h2><Link className="fin-button fin-button--gold" href="/booking">Đặt lịch tư vấn <ArrowRight /></Link></div></section>
-    <FinFooter />
   </main></PublicMotionRoot>;
 }

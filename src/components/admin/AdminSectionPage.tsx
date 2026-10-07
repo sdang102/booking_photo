@@ -1,8 +1,8 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import AdminCrudPanel from '@/components/admin/AdminCrudPanel';
 import {
   getBookingFinancialRecords,
   getBookingRevenueSummary,
@@ -13,6 +13,7 @@ import { formatVND } from '@/components/ServiceCard';
 
 const PAGE_SIZE = 50;
 const EMPTY_SUMMARY: BookingRevenueSummary = { total: 0, realized: 0, atVenue: 0, activeCount: 0 };
+const AdminCrudPanel = dynamic(() => import('@/components/admin/AdminCrudPanel'), { ssr: false, loading: () => <div className="h-40 animate-pulse rounded-2xl bg-sky-50" /> });
 const titles:Record<string,string>={homepage:'Nội dung trang chủ',services:'Gói chụp',addons:'Dịch vụ bổ sung',categories:'Bộ lọc bộ sưu tập',portfolio:'Tác phẩm nổi bật',albums:'Album ảnh',locations:'Địa điểm',faq:'FAQ',media:'Media',reviews:'Đánh giá',revenue:'Doanh thu',settings:'Cài đặt'};
 
 export default function AdminSectionPage({params}:{params:Promise<{section:string}>}){
