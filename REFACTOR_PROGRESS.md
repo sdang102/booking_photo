@@ -105,7 +105,26 @@ Implemented:
 
 Verification: `npm run lint` pass, `npx tsc --noEmit` pass, `npm run build` pass. No real migration, deploy, or push was performed. Committed locally as `perf: giai đoạn 5 - giảm tải frontend`.
 
+## Giai đoạn 6 — Dọn code thừa
+
+Status: **hoàn tất**.
+
+Evidence before deletion/refactor:
+
+- Repo-wide `rg` (excluding `node_modules`, `.git`, and the user-owned untracked audit report) found no executable, test, script, dynamic-import, or string reference to `src/lib/services/contentService.ts`; the service was deleted.
+- `updateBookingStatus` had one caller only, `src/app/photographer/bookings/[id]/page.tsx`, and it always passed `photographer`; there was no admin caller in `src`, `scripts`, or tests. The unused admin update branch and actor parameter were removed while keeping the `photographer_advance_booking` RPC path unchanged.
+- `mapReview` was already typed with `ReviewRow` and contained no `any`/`as any`; no behavior change was needed there.
+- The only remaining `console` usage in application source is the intentional development-only logger (`src/lib/devLogger.ts`), which is still used for recoverable Supabase diagnostics. CLI `console` output in migration/test scripts is intentional user-facing script output and was retained.
+
+Implemented:
+
+- Deleted `src/lib/services/contentService.ts` after the grep evidence above.
+- Simplified `updateBookingStatus` and its sole photographer caller.
+- Added documented `NEXT_PUBLIC_USE_DEMO_BOOKINGS=false` to `.env.example`.
+- Kept intentionally shared/legacy or risky candidates listed in the final report only: `can()`, motion config/data attributes, LocalStorage mock fallback, `supabase/legacy/*`, `payments`, old migrations, and the duplicate admin portfolio/albums surfaces.
+
+Verification: `npm run lint` pass, `npx tsc --noEmit` pass, `npm run build` pass. No real migration, deploy, or push was performed.
+
 ## Các giai đoạn còn lại
 
-- Giai đoạn 6: dọn code thừa.
 - Giai đoạn 7: tách file lớn, không đổi hành vi.

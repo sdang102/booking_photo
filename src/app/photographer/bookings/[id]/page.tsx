@@ -33,7 +33,7 @@ export default function BookingDetail({params}:{params:Promise<{id:string}>}){
     if(actionBusy)return;
     const previous=item;const updated={...item,status:nextStatus};
     setActionBusy(true);setFetchedItem(updated);updateBooking(updated);
-    const ok=await updateBookingStatus(item.id,nextStatus,'photographer');
+    const ok=await updateBookingStatus(item.id,nextStatus);
     if(ok)window.dispatchEvent(new Event('booking-status-changed'));
     else{setFetchedItem(previous);updateBooking(previous);setMessage('Không thể cập nhật trạng thái. Dữ liệu đã được khôi phục.')}
     setActionBusy(false);

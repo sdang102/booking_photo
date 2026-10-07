@@ -310,24 +310,12 @@ export async function getActiveUserBookingCount(userId: string): Promise<number>
 // 4. Cập nhật trạng thái lịch chụp (xác nhận, hoàn thành, hủy)
 export async function updateBookingStatus(
   bookingId: string,
-  newStatus: BookingStatus,
-  actor: 'admin' | 'photographer' = 'photographer'
+  newStatus: BookingStatus
 ): Promise<boolean> {
   try {
     const supabase = createClient();
-    if (actor === 'photographer') {
-      const { error } = await supabase.rpc('photographer_advance_booking', { target_id: bookingId, new_status: newStatus, note: null });
-      return !error;
-    }
-    const { error } = await supabase
-      .from(TABLE_NAME)
-      .update({ status: newStatus })
-      .eq('id', bookingId);
-
-    if (!error) {
-      updateLocalStatus(bookingId, newStatus);
-      return true;
-    }
+    const { error } = await supabase.rpc('photographer_advance_booking', { target_id: bookingId, new_status: newStatus, note: null });
+    return !error;
   } catch (err) {
     devWarn('Error updating status in Supabase:', err);
   }
