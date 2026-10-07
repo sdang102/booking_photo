@@ -125,6 +125,73 @@ Implemented:
 
 Verification: `npm run lint` pass, `npx tsc --noEmit` pass, `npm run build` pass. No real migration, deploy, or push was performed.
 
-## Các giai đoạn còn lại
+## Giai đoạn 7 — Tách file lớn, không đổi hành vi
 
-- Giai đoạn 7: tách file lớn, không đổi hành vi.
+Status: **hoàn tất**.
+
+Implemented in small groups (lint, TypeScript and build were rerun after each group):
+
+- `bookingService.ts` is now a backwards-compatible barrel. Booking reads moved to `bookingReadService.ts`, writes to `bookingWriteService.ts`, revenue queries to `bookingRevenueService.ts`, availability to `availabilityService.ts`, and shared constants/local mappers/demo fallback to `bookingShared.ts`.
+- `BookingWizard.tsx` now composes `BookingModalShell`, `BookingStepSchedule`, `BookingStepCustomer`, `BookingStepConfirm`, and shared field primitives in `BookingWizardFields.tsx`.
+- `PublicReviewsPage.tsx` now delegates review cards and the detail dialog to `PublicReviewCard.tsx` and `PublicReviewDetail.tsx`.
+- `globals.css` was intentionally not modified in this phase; its future extraction plan is listed below.
+
+Verification: `npm run lint` pass, `npx tsc --noEmit` pass, `npm run build` pass. No real migration, deploy, or push was performed. Committed locally as `perf: giai đoạn 7 - tách file lớn`.
+
+## Báo cáo kết thúc
+
+### (a) File và trạng thái theo giai đoạn
+
+- Giai đoạn 1: tạo `supabase/migrations/202610070005_phase1_security_consistency.sql`; sửa `reviewService.ts`, `publicContentService.ts`; commit `1c62967`.
+- Giai đoạn 2: tạo `supabase/migrations/202610070006_phase2_public_pagination.sql`; thêm/cập nhật API, service và UI phân trang; commit `edf8209`.
+- Giai đoạn 3: tạo `supabase/migrations/202610070007_phase3_review_thumbnails.sql`; sửa image components, review media, AuthContext, global image CSS; thêm `sharp` và cập nhật script Base64; commit `d1088a9`.
+- Giai đoạn 4: tạo `supabase/migrations/202610070008_phase4_atomic_review_uploads.sql`; sửa review upload và admin album preview upload; commit `d2a0e47`.
+- Giai đoạn 5: sửa booking polling/pagination, lazy modal, AuthContext, motion và guest draft; tạo loading/error route files; commit `3d40742`.
+- Giai đoạn 6: xóa `src/lib/services/contentService.ts` sau grep toàn repo; sửa `bookingService` caller/actor branch; sửa `.env.example`; commit `1200bca`.
+- Giai đoạn 7: tạo các service/component files nêu trong mục Giai đoạn 7, biến `bookingService.ts` thành barrel, tách `BookingWizard` và `PublicReviewsPage`; commit kế tiếp sau khi hoàn tất kiểm tra.
+- `PROJECT_AUDIT_REPORT.md` là file untracked có sẵn của người dùng; được giữ nguyên, không sửa và không commit.
+
+### (b) Migration mới và lệnh chạy
+
+Chạy theo thứ tự timestamp bằng Supabase CLI sau khi kiểm tra môi trường:
+
+1. `202610070005_phase1_security_consistency.sql`
+2. `202610070006_phase2_public_pagination.sql`
+3. `202610070007_phase3_review_thumbnails.sql`
+4. `202610070008_phase4_atomic_review_uploads.sql`
+
+Lệnh đề xuất: `supabase db push` (hoặc chạy các file trên trong Supabase SQL Editor theo thứ tự). Tôi chưa chạy migration lên database thật.
+
+### (c) Kiểm tra thủ công
+
+1. Đăng ký, đăng nhập, refresh trang và kiểm tra role/user profile.
+2. Ở trạng thái khách, chọn dịch vụ/ngày/ca, điền form, bấm gửi; đăng nhập rồi xác nhận draft được khôi phục và booking gửi được.
+3. Photographer mở booking, đổi lần lượt trạng thái hợp lệ, kiểm tra danh sách cập nhật và thử `Tải thêm booking`.
+4. Admin sửa nội dung, album và review; kiểm tra phân trang/tải thêm không tải toàn bộ danh sách.
+5. Mở album nhiều ảnh, kiểm tra trang đầu và nút tải thêm; mở lightbox để xác nhận ảnh gốc chỉ tải khi cần.
+6. Gửi review có 1–5 ảnh; thử ngắt mạng sau upload để xác nhận giao diện báo lỗi và không để object rác; kiểm tra thumbnail trong card.
+7. Mở reviews khi chưa đăng nhập, thử lọc, mở chi tiết, bấm like khi đã đăng nhập và kiểm tra số like tăng/giảm đúng.
+8. Đổi avatar, đổi lại avatar và kiểm tra object cũ được dọn best-effort; xác nhận profile/booking/review vẫn hiển thị avatar.
+
+### (d) Quyết định mặc định đã áp dụng
+
+- Giữ bucket `review-media` public và siết policy theo review public để không phá public URL hiện tại. URL public trực tiếp đã biết vẫn có thể truy cập; muốn chặn thật phải chuyển bucket private + signed URL.
+- Art direction ảnh dùng `<picture>`/`getImageProps`; hero eager/high priority, ảnh nội dung lazy.
+- Thumbnail review WebP 640px, tối đa 3 upload worker; review row và media row tạo trong RPC transaction.
+- Lịch photographer lấy từ 30 ngày trước đến tương lai, 50 dòng/trang; refresh tab visible sau khoảng 2 phút hoặc sau đổi trạng thái.
+- Guest booking yêu cầu đăng nhập tại bước gửi và giữ lại lựa chọn trong `sessionStorage`.
+
+### (e) Tồn đọng, nghi ngờ và đề xuất sau
+
+- Chưa xóa `can()` trong permissions, motion config/data attributes, LocalStorage mock fallback, `supabase/legacy/*`, bảng payments, migration cũ; đây là các mục được yêu cầu giữ nguyên.
+- Chưa gộp `/admin/portfolio` và `/admin/albums`, hoặc `MyBookingsModal` với `/my-bookings`, vì cần kiểm tra nghiệp vụ/UI riêng trước khi đổi.
+- `src/lib/devLogger.ts` và console trong CLI scripts là logging có chủ đích, không phải log debug thừa.
+- Nên kiểm chứng index bổ sung trước khi tạo bằng `EXPLAIN (ANALYZE, BUFFERS) ...` trên bản sao dữ liệu thật; không tự tạo trong run này.
+- Nếu cần bảo mật media tuyệt đối, chuyển `review-media` private và dùng signed URL; cân nhắc rate limit cho RPC/upload; tách tiếp các khối `globals.css` theo phạm vi khi có test visual.
+
+### (f) Hoàn tác
+
+- Nhánh làm việc: `perf-refactor`.
+- Có thể quay lại commit trước từng giai đoạn: `1c62967`, `edf8209`, `d1088a9`, `d2a0e47`, `3d40742`, `1200bca`, và commit giai đoạn 7.
+- Không dùng `git reset --hard` trên worktree có thay đổi người dùng. Tạo branch backup rồi `git revert <commit>` nếu cần hoàn tác code.
+- Migration chỉ được tạo mới, chưa áp dụng. Nếu đã áp dụng sau này, rollback phải viết migration đảo ngược riêng sau khi backup/schema review; không sửa hoặc xóa migration cũ.
