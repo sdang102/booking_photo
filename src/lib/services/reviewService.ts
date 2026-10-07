@@ -51,15 +51,16 @@ async function reviewLikeCounts(reviewIds: string[]) {
   } catch { return new Map<string, number>(); }
 }
 
-export async function getReviews(options: { publicOnly?: boolean; featuredFirst?: boolean; limit?: number } = {}): Promise<ExperienceReview[]> {
+export async function getReviews(options: { publicOnly?: boolean; featuredFirst?: boolean; limit?: number; offset?: number; bookingIds?: string[] } = {}): Promise<ExperienceReview[]> {
   try {
     const supabase = createClient();
     let query = supabase.from('reviews')
       .select('id,booking_id,user_id,rating,comment,is_public,is_featured,created_at,updated_at,bookings(customer_name,service_name_snapshot),portfolio_albums(slug)');
     if (options.publicOnly) query = query.eq('is_public', true);
+    if (options.bookingIds?.length) query = query.in('booking_id', options.bookingIds);
     if (options.featuredFirst) query = query.order('is_featured', { ascending: false });
     query = query.order('created_at', { ascending: false });
-    if (options.limit) query = query.limit(options.limit);
+    if (options.limit) query = query.range(Math.max(0, options.offset ?? 0), Math.max(0, (options.offset ?? 0) + options.limit - 1));
     const { data, error } = await query;
     if (!error && data) {
       const reviewIds = data.map((row) => row.id);
@@ -84,7 +85,8 @@ export async function getReviews(options: { publicOnly?: boolean; featuredFirst?
   let reviews = localReviews();
   if (options.publicOnly) reviews = reviews.filter((review) => review.is_public);
   reviews.sort((a, b) => options.featuredFirst && a.is_featured !== b.is_featured ? Number(b.is_featured) - Number(a.is_featured) : b.created_at.localeCompare(a.created_at));
-  return options.limit ? reviews.slice(0, options.limit) : reviews;
+  if (options.bookingIds?.length) reviews = reviews.filter((review) => options.bookingIds?.includes(review.booking_id));
+  return options.limit ? reviews.slice(options.offset ?? 0, (options.offset ?? 0) + options.limit) : reviews;
 }
 
 export async function getPhotographerReviews(): Promise<ExperienceReview[]> {

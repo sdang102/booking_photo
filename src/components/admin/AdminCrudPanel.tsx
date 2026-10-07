@@ -35,7 +35,6 @@ export default function AdminCrudPanel({section}:{section:string}){
   const load=useCallback(async(pageNumber=0)=>{if(!config)return;const columns=['id',...config.fields.map(field=>field.key),config.archive].filter((value,index,list):value is string=>Boolean(value)&&list.indexOf(value)===index).join(',');let query=createClient().from(config.table).select(columns).order('display_order',{ascending:true});query=config.singleton?query.limit(1):query.range(pageNumber*PAGE_SIZE,(pageNumber+1)*PAGE_SIZE-1);const{data,error}=await query;if(error)setMsg(error.message);else{const next=(data??[])as unknown as Row[];setRows(current=>pageNumber===0?next:[...current,...next]);setPage(pageNumber);setHasMore(!config.singleton&&next.length===PAGE_SIZE)}},[config]);
   useEffect(()=>{void load()},[load]);
   useEffect(()=>{if(config?.fields.some(field=>field.kind==='category'))void createClient().from('categories').select('id,name').eq('is_active',true).order('display_order').then(({data})=>setCategories(data??[]))},[config]);
-  useEffect(()=>{if(rows.length)void refreshPublicContent()},[rows]);
   if(!config)return null;
 
   const save=async(event:FormEvent)=>{

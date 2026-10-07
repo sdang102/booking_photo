@@ -1,5 +1,6 @@
 ﻿'use client';
 
+/* eslint-disable react-hooks/set-state-in-effect */
 import React, { useEffect, useState } from 'react';
 import { BookingPhotoRecord } from '@/types';
 import { formatVND } from './ServiceCard';
@@ -33,9 +34,20 @@ export default function MyBookingsModal({
   const [submittedReviewIds, setSubmittedReviewIds] = useState<string[]>([]);
   const [reviewBooking, setReviewBooking] = useState<BookingPhotoRecord | null>(null);
   useEffect(() => {
-    if (!isOpen) return;
-    getReviews().then((items) => { setReviews(items); setReviewsLoaded(true); });
-  }, [isOpen]);
+    if (!isOpen || !user) {
+      setReviews([]);
+      setReviewsLoaded(Boolean(isOpen && !user));
+      return;
+    }
+    const ownedBookingIds = bookings.filter((booking) => booking.user_id === user.id || booking.customer_email.toLowerCase() === user.email.toLowerCase()).map((booking) => booking.id);
+    if (!ownedBookingIds.length) {
+      setReviews([]);
+      setReviewsLoaded(true);
+      return;
+    }
+    setReviewsLoaded(false);
+    void getReviews({ bookingIds: ownedBookingIds, publicOnly: true }).then((items) => { setReviews(items); setReviewsLoaded(true); });
+  }, [bookings, isOpen, user]);
   useEffect(() => {
     if (!isOpen) return;
     const body = document.body;
@@ -214,7 +226,7 @@ export default function MyBookingsModal({
         </div>
 
       </div>
-      {reviewBooking && <ReviewForm booking={reviewBooking} userId={user?.id} onClose={() => setReviewBooking(null)} onSuccess={() => { const bookingId = reviewBooking.id; setReviewBooking(null); setSubmittedReviewIds((current) => current.includes(bookingId) ? current : [...current, bookingId]); getReviews().then((items) => { setReviews(items); setReviewsLoaded(true); }); }} />}
+      {reviewBooking && <ReviewForm booking={reviewBooking} userId={user?.id} onClose={() => setReviewBooking(null)} onSuccess={() => { const bookingId = reviewBooking.id; setReviewBooking(null); setSubmittedReviewIds((current) => current.includes(bookingId) ? current : [...current, bookingId]); void getReviews({ bookingIds: [bookingId], publicOnly: true }).then((items) => { setReviews((current) => [...current.filter((review) => review.booking_id !== bookingId), ...items]); setReviewsLoaded(true); }); }} />}
     </div>
   );
 }

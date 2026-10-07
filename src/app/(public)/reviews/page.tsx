@@ -1,5 +1,5 @@
 import PublicReviewsPage from '@/components/PublicReviewsPage';
-import { getPublicReviews } from '@/lib/services/publicContentService';
+import { getPublicReviewPage, getPublicReviewSummary } from '@/lib/services/publicContentService';
 
 export const metadata = {
   title: 'Đánh giá khách hàng | FIN PHOTO',
@@ -7,6 +7,6 @@ export const metadata = {
 };
 
 export default async function ReviewsPage() {
-  const reviews = await getPublicReviews();
-  return <PublicReviewsPage initialReviews={reviews} />;
+  const [initialPage, initialSummary] = await Promise.all([getPublicReviewPage(), getPublicReviewSummary()]);
+  return <PublicReviewsPage initialPage={initialPage} initialSummary={initialSummary} />;
 }

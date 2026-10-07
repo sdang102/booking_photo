@@ -6,6 +6,9 @@ import type {
   HomepageSection,
   PortfolioAlbum,
   PortfolioImage,
+  PublicReviewCursor,
+  PublicReviewPage,
+  PublicReviewSummary,
   Service,
   ServiceAddon,
 } from '@/types';
@@ -19,8 +22,8 @@ const CONTENT_TAG = 'public-content';
 const PUBLIC_IMAGE_FALLBACK = '/fin-hero-bg.jpg';
 const MAX_PUBLIC_IMAGE_VALUE_LENGTH = 512_000;
 const ALBUM_COVER_SELECT = 'id,slug,title,shoot_date,location_text,cover_image,cover_image_mobile,display_order,is_public,categories(slug),locations(name)';
-const ALBUM_DETAIL_SELECT = `${ALBUM_COVER_SELECT},portfolio_images(id,image_url,storage_path,thumb_url,thumb_path,alt_text,width,height,display_order)`;
-const ALBUM_DETAIL_SELECT_LEGACY = `${ALBUM_COVER_SELECT},portfolio_images(id,image_url,storage_path,alt_text,width,height,display_order)`;
+const ALBUM_IMAGE_SELECT = 'id,image_url,thumb_url,alt_text,width,height,display_order';
+const PUBLIC_REVIEW_PAGE_SIZE = 12;
 
 function publicClient() {
   return createClient(
@@ -41,6 +44,20 @@ interface AlbumRow {
   categories?: { slug?: string | null } | Array<{ slug?: string | null }> | null;
   locations?: { name?: string | null } | Array<{ name?: string | null }> | null;
   portfolio_images?: Array<Record<string, unknown>>;
+}
+
+interface ReviewRow {
+  id: string;
+  booking_id: string;
+  user_id?: string | null;
+  rating: number;
+  comment: string;
+  is_public: boolean;
+  is_featured: boolean;
+  created_at: string;
+  updated_at: string;
+  bookings?: { customer_name?: string | null; service_name_snapshot?: string | null } | Array<{ customer_name?: string | null; service_name_snapshot?: string | null }> | null;
+  portfolio_albums?: { slug?: string | null } | Array<{ slug?: string | null }> | null;
 }
 
 function relation<T>(value: T | T[] | null | undefined): T | undefined {
@@ -87,26 +104,24 @@ function mapAlbum(row: AlbumRow): PortfolioAlbum {
   };
 }
 
-function mapAlbumDetail(row: AlbumRow): PortfolioAlbum {
-  const album = mapAlbum(row);
-  album.images = (row.portfolio_images ?? []).map((image): PortfolioImage => ({
+function mapAlbumImage(image: Record<string, unknown>, fallbackAlt: string): PortfolioImage {
+  return {
     id: String(image.id),
     url: safePublicImage(image.image_url),
     thumbnail_url: safePublicImage(image.thumb_url ?? image.image_url),
-    alt: String(image.alt_text ?? row.title),
+    alt: String(image.alt_text ?? fallbackAlt),
     width: Number(image.width) || 1200,
     height: Number(image.height) || 800,
-  }));
-  return album;
+  };
 }
 
-async function queryAlbums(limit?: number): Promise<PortfolioAlbum[]> {
+async function queryAlbums(limit?: number, offset = 0): Promise<PortfolioAlbum[]> {
   const query = publicClient()
     .from('portfolio_albums')
     .select(ALBUM_COVER_SELECT)
     .eq('is_public', true)
     .order('display_order');
-  const { data, error } = limit ? await query.limit(limit) : await query;
+  const { data, error } = limit ? await query.range(Math.max(0, offset), Math.max(0, offset) + limit - 1) : await query;
   if (error || !data) return [];
   return (data as unknown as AlbumRow[]).map(mapAlbum);
 }
@@ -118,38 +133,71 @@ const getCachedAlbums = (limit?: number) => unstable_cache(
 )();
 
 async function queryAlbum(slug: string): Promise<PortfolioAlbum | null> {
-  const client = publicClient();
-  const primary = await client
+  const { data, error } = await publicClient()
     .from('portfolio_albums')
-    .select(ALBUM_DETAIL_SELECT)
+    .select(ALBUM_COVER_SELECT)
     .eq('slug', slug)
     .eq('is_public', true)
-    .order('display_order', { referencedTable: 'portfolio_images', ascending: true })
     .single();
-  let data: unknown = primary.data;
-  let error = primary.error;
-  if (error && /thumb_url|thumb_path|column/i.test(error.message)) {
-    const legacy = await client
-      .from('portfolio_albums')
-      .select(ALBUM_DETAIL_SELECT_LEGACY)
-      .eq('slug', slug)
-      .eq('is_public', true)
-      .order('display_order', { referencedTable: 'portfolio_images', ascending: true })
-      .single();
-    data = legacy.data;
-    error = legacy.error;
-  }
-  return error || !data ? null : mapAlbumDetail(data as AlbumRow);
+  return error || !data ? null : mapAlbum(data as AlbumRow);
 }
 
 export function getPublicAlbumCovers(limit?: number) {
   return getCachedAlbums(limit);
 }
 
+export async function getPublicAlbumCoverPage(offset = 0, limit = 24) {
+  const safeOffset = Math.max(0, Math.floor(offset) || 0);
+  const safeLimit = Math.min(24, Math.max(1, Math.floor(limit) || 24));
+  const client = publicClient();
+  const { data, error, count } = await client
+    .from('portfolio_albums')
+    .select(ALBUM_COVER_SELECT, { count: 'exact' })
+    .eq('is_public', true)
+    .order('display_order')
+    .range(safeOffset, safeOffset + safeLimit - 1);
+  const albums = error || !data ? [] : (data as unknown as AlbumRow[]).map(mapAlbum);
+  return { albums, nextOffset: albums.length === safeLimit ? safeOffset + albums.length : null, total: count ?? safeOffset + albums.length };
+}
+
 export function getPublicAlbumBySlug(slug: string) {
   return unstable_cache(
     () => queryAlbum(slug),
     ['public-album', slug],
+    { revalidate: 300, tags: [CONTENT_TAG, `public-album:${slug}`] },
+  )();
+}
+
+async function queryAlbumImagePage(slug: string, offset: number, limit: number) {
+  const client = publicClient();
+  const { data: album, error: albumError } = await client
+    .from('portfolio_albums')
+    .select('id,title')
+    .eq('slug', slug)
+    .eq('is_public', true)
+    .maybeSingle();
+  if (albumError || !album) return { images: [], nextOffset: null as number | null };
+
+  const safeLimit = Math.min(18, Math.max(1, Math.floor(limit) || 18));
+  const safeOffset = Math.max(0, Math.floor(offset) || 0);
+  const { data, error, count } = await client
+    .from('portfolio_images')
+    .select(ALBUM_IMAGE_SELECT, { count: 'exact' })
+    .eq('album_id', album.id)
+    .order('display_order', { ascending: true })
+    .order('id', { ascending: true })
+    .range(safeOffset, safeOffset + safeLimit - 1);
+  if (error || !data) return { images: [], nextOffset: null as number | null, total: 0 };
+  const images = (data as unknown as Array<Record<string, unknown>>).map((image) => mapAlbumImage(image, String(album.title)));
+  return { images, nextOffset: images.length === safeLimit ? safeOffset + images.length : null, total: count ?? safeOffset + images.length };
+}
+
+export function getPublicAlbumImagePage(slug: string, offset = 0, limit = 18) {
+  const safeOffset = Math.max(0, Math.floor(offset) || 0);
+  const safeLimit = Math.min(18, Math.max(1, Math.floor(limit) || 18));
+  return unstable_cache(
+    () => queryAlbumImagePage(slug, safeOffset, safeLimit),
+    ['public-album-images', slug, String(safeOffset), String(safeLimit)],
     { revalidate: 300, tags: [CONTENT_TAG, `public-album:${slug}`] },
   )();
 }
@@ -228,20 +276,18 @@ async function queryAddons(): Promise<ServiceAddon[]> {
 
 export const getPublicServiceAddons = unstable_cache(queryAddons, ['public-service-addons'], { revalidate: 300, tags: [CONTENT_TAG] });
 
-// Supabase relation payloads are intentionally untyped here; the mapper normalizes them below.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapReview(row: Record<string, any>): ExperienceReview {
+function mapReview(row: ReviewRow): ExperienceReview {
   const booking = relation(row.bookings);
   const album = relation(row.portfolio_albums);
   return {
     id: row.id,
     booking_id: row.booking_id,
-    user_id: row.user_id,
+    user_id: row.user_id ?? undefined,
     customer_name: booking?.customer_name ?? 'Khách hàng',
     rating: row.rating,
     comment: row.comment,
     service_title: booking?.service_name_snapshot ?? '',
-    portfolio_slug: album?.slug,
+    portfolio_slug: album?.slug ?? undefined,
     is_public: row.is_public,
     is_featured: row.is_featured,
     created_at: row.created_at,
@@ -249,37 +295,85 @@ function mapReview(row: Record<string, any>): ExperienceReview {
   };
 }
 
-async function queryReviews(): Promise<ExperienceReview[]> {
+async function enrichReviewRows(client: ReturnType<typeof publicClient>, data: ReviewRow[]): Promise<ExperienceReview[]> {
+  if (!data.length) return [];
+  const reviewIds = data.map((row) => row.id);
+  const userIds = data.map((row) => row.user_id).filter((id): id is string => Boolean(id));
+  const media = new Map<string, string[]>();
+  const avatars = new Map<string, string>();
+  const likes = new Map<string, number>();
+  try {
+    const [{ data: images }, { data: authors }, { data: likeCounts }] = await Promise.all([
+      client.from('review_images').select('review_id,image_url,display_order').in('review_id', reviewIds).order('display_order'),
+      client.rpc('get_public_review_authors', { target_ids: userIds }),
+      client.rpc('get_review_like_counts', { target_review_ids: reviewIds }),
+    ]);
+    (images ?? []).forEach((image) => media.set(image.review_id, [...(media.get(image.review_id) ?? []), image.image_url]));
+    (authors ?? []).forEach((author: { id: string; avatar_url: string | null }) => { if (author.avatar_url) avatars.set(author.id, author.avatar_url); });
+    (likeCounts ?? []).forEach((like: { review_id: string; like_count: number | string }) => { likes.set(like.review_id, Number(like.like_count ?? 0)); });
+  } catch { /* Optional review media/avatar/like migrations may not exist yet. */ }
+  return data.map((row) => ({ ...mapReview(row), avatar_url: row.user_id ? avatars.get(row.user_id) : undefined, photos: media.get(row.id) ?? [], likes: likes.get(row.id) ?? 0 }));
+}
+
+async function queryReviewPage(cursor?: PublicReviewCursor | null, limit = PUBLIC_REVIEW_PAGE_SIZE): Promise<PublicReviewPage> {
   try {
     const client = publicClient();
-    const { data, error } = await client
+    const safeLimit = Math.min(PUBLIC_REVIEW_PAGE_SIZE, Math.max(1, Math.floor(limit) || PUBLIC_REVIEW_PAGE_SIZE));
+    let query = client
       .from('reviews')
       .select('id,booking_id,user_id,rating,comment,is_public,is_featured,created_at,updated_at,bookings(customer_name,service_name_snapshot),portfolio_albums(slug)')
       .eq('is_public', true)
-      .order('is_featured', { ascending: false })
       .order('created_at', { ascending: false });
+    if (cursor?.created_at && cursor.id) {
+      query = query.or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`);
+    }
+    query = query.order('id', { ascending: false }).limit(safeLimit);
+    const { data, error } = await query;
     if (!error && data) {
-      const reviewIds = data.map((row) => row.id);
-      const userIds = data.map((row) => row.user_id).filter((id): id is string => Boolean(id));
-      const media = new Map<string, string[]>();
-      const avatars = new Map<string, string>();
-      const likes = new Map<string, number>();
-      try {
-        const [{ data: images }, { data: authors }, { data: likeCounts }] = await Promise.all([
-          client.from('review_images').select('review_id,image_url,display_order').in('review_id', reviewIds).order('display_order'),
-          client.rpc('get_public_review_authors', { target_ids: userIds }),
-          client.rpc('get_review_like_counts', { target_review_ids: reviewIds }),
-        ]);
-        (images ?? []).forEach((image) => media.set(image.review_id, [...(media.get(image.review_id) ?? []), image.image_url]));
-        (authors ?? []).forEach((author: { id: string; avatar_url: string | null }) => { if (author.avatar_url) avatars.set(author.id, author.avatar_url); });
-        (likeCounts ?? []).forEach((like: { review_id: string; like_count: number | string }) => { likes.set(like.review_id, Number(like.like_count ?? 0)); });
-      } catch { /* Optional review media/avatar/like migrations may not exist yet. */ }
-      return data.map((row) => ({ ...mapReview(row), avatar_url: row.user_id ? avatars.get(row.user_id) : undefined, photos: media.get(row.id) ?? [], likes: likes.get(row.id) ?? 0 }));
+      const reviews = await enrichReviewRows(client, data as unknown as ReviewRow[]);
+      const last = data[data.length - 1];
+      return { reviews, nextCursor: data.length === safeLimit ? { created_at: String(last.created_at), id: String(last.id) } : null };
     }
   } catch {
     // Fall through to local fixtures in development.
   }
-  return process.env.NODE_ENV !== 'production' ? MOCK_REVIEWS.filter((review) => review.is_public) : [];
+  const fallback = process.env.NODE_ENV !== 'production' ? MOCK_REVIEWS.filter((review) => review.is_public) : [];
+  const safeOffset = cursor ? fallback.findIndex((review) => review.id === cursor.id) + 1 : 0;
+  const reviews = safeOffset > 0 ? fallback.slice(safeOffset, safeOffset + limit) : fallback.slice(0, limit);
+  const last = reviews[reviews.length - 1];
+  return { reviews, nextCursor: reviews.length === limit && last ? { created_at: last.created_at, id: last.id } : null };
 }
 
-export const getPublicReviews = unstable_cache(queryReviews, ['public-reviews'], { revalidate: 300, tags: [CONTENT_TAG] });
+export function getPublicReviewPage(cursor?: PublicReviewCursor | null, limit = PUBLIC_REVIEW_PAGE_SIZE) {
+  const cursorKey = cursor ? `${cursor.created_at}:${cursor.id}` : 'first';
+  return unstable_cache(
+    () => queryReviewPage(cursor, limit),
+    ['public-reviews-page', cursorKey, String(limit)],
+    { revalidate: 300, tags: [CONTENT_TAG] },
+  )();
+}
+
+export async function getPublicReviews() {
+  return (await getPublicReviewPage()).reviews;
+}
+
+export async function getPublicReviewSummary(): Promise<PublicReviewSummary> {
+  try {
+    const { data, error } = await publicClient().rpc('get_public_review_summary');
+    if (!error && data) {
+      const rows = data as Array<{ average_rating: number | string; total_reviews: number | string; rating: number; rating_count: number | string }>;
+      const first = rows[0];
+      return {
+        averageRating: Number(first?.average_rating ?? 0),
+        totalReviews: Number(first?.total_reviews ?? 0),
+        distribution: Object.fromEntries(rows.map((row) => [Number(row.rating), Number(row.rating_count)])),
+      };
+    }
+  } catch { /* Fall through to the local development summary. */ }
+  const reviews = process.env.NODE_ENV !== 'production' ? MOCK_REVIEWS.filter((review) => review.is_public) : [];
+  return {
+    averageRating: reviews.length ? Math.round((reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length) * 10) / 10 : 0,
+    totalReviews: reviews.length,
+    distribution: Object.fromEntries([1, 2, 3, 4, 5].map((rating) => [rating, reviews.filter((review) => review.rating === rating).length])),
+  };
+}

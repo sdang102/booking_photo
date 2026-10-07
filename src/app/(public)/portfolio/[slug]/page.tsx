@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import PortfolioAlbumPageClient from '@/components/PortfolioAlbumPageClient';
-import { getPublicAlbumBySlug } from '@/lib/services/publicContentService';
+import { getPublicAlbumBySlug, getPublicAlbumImagePage } from '@/lib/services/publicContentService';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PortfolioAlbumPage({ params }: Props) {
   const { slug } = await params;
-  const album = await getPublicAlbumBySlug(slug);
+  const [album, imagePage] = await Promise.all([getPublicAlbumBySlug(slug), getPublicAlbumImagePage(slug)]);
   if (!album) notFound();
-  return <PortfolioAlbumPageClient album={album} />;
+  return <PortfolioAlbumPageClient album={{ ...album, images: imagePage.images }} initialNextOffset={imagePage.nextOffset} initialTotal={imagePage.total} />;
 }

@@ -89,6 +89,22 @@ export interface ReviewSummary {
   totalReviews: number;
 }
 
+export interface PublicReviewCursor {
+  created_at: string;
+  id: string;
+}
+
+export interface PublicReviewPage {
+  reviews: ExperienceReview[];
+  nextCursor: PublicReviewCursor | null;
+}
+
+export interface PublicReviewSummary {
+  averageRating: number;
+  totalReviews: number;
+  distribution: Record<number, number>;
+}
+
 export interface Photographer {
   id: string;
   full_name: string;

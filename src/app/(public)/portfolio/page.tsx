@@ -1,7 +1,7 @@
 import FinPortfolioArchive from '@/components/FinPortfolioArchive';
-import { getPublicAlbumCovers, getPublicCategories } from '@/lib/services/publicContentService';
+import { getPublicAlbumCoverPage, getPublicCategories } from '@/lib/services/publicContentService';
 
 export default async function PortfolioPage() {
-  const [albums, categories] = await Promise.all([getPublicAlbumCovers(), getPublicCategories()]);
-  return <FinPortfolioArchive albums={albums} categories={categories} />;
+  const [albumPage, categories] = await Promise.all([getPublicAlbumCoverPage(), getPublicCategories()]);
+  return <FinPortfolioArchive albums={albumPage.albums} categories={categories} initialNextOffset={albumPage.nextOffset} initialTotal={albumPage.total} />;
 }

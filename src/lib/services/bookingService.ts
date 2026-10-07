@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/client';
 import { MOCK_SERVICES } from '@/lib/data/mockData';
 import { Service, BookingFormData, BookingPhotoRecord, PublicScheduleItem, BookingStatus, AvailabilityBlock } from '@/types';
 import { normalizeVietnameseMobile, VIETNAMESE_MOBILE_ERROR } from '@/lib/phone';
-import { isRangeAvailable, rangesOverlap } from '@/lib/bookingAvailability';
+import { rangesOverlap } from '@/lib/bookingAvailability';
 import { devWarn } from '@/lib/devLogger';
 
 const TABLE_NAME = 'bookings';
@@ -134,15 +134,19 @@ export async function createBookingPhoto(
   const normalizedPhone = normalizeVietnameseMobile(booking.customer_phone);
   if (!normalizedPhone) return { success: false, message: VIETNAMESE_MOBILE_ERROR };
 
-  const [allBookings, availabilityBlocks] = await Promise.all([getPublicSchedule(), getAvailabilityBlocks()]);
-  if (!isRangeAvailable(booking.booking_date, booking.booking_time, allBookings, availabilityBlocks)) {
-    return {
-      success: false,
-      message: `Khung giờ ${booking.booking_time} vào ngày ${booking.booking_date} đã có người giữ chỗ, bị thợ khóa hoặc không còn hợp lệ. Vui lòng chọn giờ khác.`,
-    };
-  }
-
   const [startTime, endTime] = booking.booking_time.replace(/\s*\(.+\)$/, '').split('-').map((part) => part.trim());
+  try {
+    const { data: slotAvailable, error: slotError } = await createClient().rpc('check_booking_slot', {
+      target_date: booking.booking_date,
+      target_start_time: startTime,
+      target_photographer_id: null,
+    });
+    if (!slotError && slotAvailable === false) {
+      return { success: false, message: `Khung giờ ${booking.booking_time} vào ngày ${booking.booking_date} đã có người giữ chỗ, bị thợ khóa hoặc không còn hợp lệ. Vui lòng chọn giờ khác.` };
+    }
+  } catch {
+    // The insert-side trigger remains authoritative while this RPC is pending deployment.
+  }
   const payload = {
     user_id: booking.user_id || null,
     service_id: booking.service_id,
@@ -248,22 +252,7 @@ export async function getBookingRevenueSummary(): Promise<BookingRevenueSummary>
     };
   }
 
-  // Backward-compatible while the Phase 1 migration is waiting to be applied.
-  const records: BookingFinancialRecord[] = [];
-  const batchSize = 1_000;
-  for (let offset = 0; ; offset += batchSize) {
-    const batch = await getBookingFinancialRecords({ limit: batchSize, offset });
-    records.push(...batch);
-    if (batch.length < batchSize) break;
-  }
-  const completed = records.filter((item) => item.status === 'completed');
-  const atVenue = records.filter((item) => item.status !== 'completed');
-  return {
-    total: records.reduce((sum, item) => sum + item.total_price, 0),
-    realized: completed.reduce((sum, item) => sum + item.total_price, 0),
-    atVenue: atVenue.reduce((sum, item) => sum + item.total_price, 0),
-    activeCount: atVenue.length,
-  };
+  throw new Error(error?.message || 'Không thể tải tổng hợp doanh thu từ database. Hãy kiểm tra RPC quản trị.');
 }
 
 // 3. Lấy lịch đặt của riêng người dùng hiện tại
