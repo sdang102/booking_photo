@@ -967,10 +967,8 @@ body.nav-open { overflow: hidden; }
 .nav-canvas nav a strong { font: inherit; }
 .nav-canvas nav a.is-active { color: var(--brand-primary); }
 
-.fin-reveal { opacity: 0; transform: translateY(34px) scale(.985); transition: opacity .75s ease var(--reveal-delay, 0ms), transform .85s cubic-bezier(.2,.8,.2,1) var(--reveal-delay, 0ms); }
-.fin-reveal.is-visible { opacity: 1; transform: translateY(0) scale(1); }
-.fin-project.fin-reveal, .fin-work.fin-reveal, .fin-craft article.fin-reveal { transform: translateY(42px) rotate(.35deg) scale(.975); }
-.fin-project.fin-reveal.is-visible, .fin-work.fin-reveal.is-visible, .fin-craft article.fin-reveal.is-visible { transform: none; }
+.fin-reveal { opacity: 0; transform: none; transition: opacity .75s ease var(--reveal-delay, 0ms); }
+.fin-reveal.is-visible { opacity: 1; transform: none; }
 
 @media (max-width: 1080px) {
   .fin-page-nav__links a { padding-inline: .62rem; }
