@@ -100,7 +100,9 @@ export default function ReviewsPage({ initialReviews }: { initialReviews: Experi
       <div className="fin-review-filters" aria-label="Lọc đánh giá">{[0, 5, 4, 3, 2, 1].map(value => <button key={value} type="button" className={rating === value ? 'is-active' : ''} onClick={() => setRating(value)}>{value ? <>{value}<Star /></> : 'Tất cả'}<span>{value ? reviews.filter(review => review.rating === value).length : reviews.length}</span></button>)}</div>
       <div className="fin-review-grid">{filtered.map(review => {
         const expanded = isExpanded(review.id);
-        const allPhotos = review.photos ?? [];
+        const allPhotos = [...(review.photos ?? [])];
+        const hasOverflow = allPhotos.length > 3;
+        if (hasOverflow) allPhotos.length -= 1;
         const photoList = allPhotos.slice(0, 3);
         const likes = likeCounts[review.id] ?? review.likes ?? 0;
         return <article key={review.id} id={`review-${review.id}`} data-reveal>
@@ -108,7 +110,7 @@ export default function ReviewsPage({ initialReviews }: { initialReviews: Experi
           <div className="fin-review-card__rating"><Stars rating={review.rating} /><span>{review.rating.toFixed(1)}</span><CheckCircle2 /></div>
           <blockquote className={expanded ? 'is-expanded' : ''}>“{review.comment}”</blockquote>
           {review.comment.length > 210 && <button type="button" className="fin-review-card__more" onClick={() => setExpandedIds((current) => expanded ? current.filter((id) => id !== review.id) : [...current, review.id])}>{expanded ? 'Thu gọn' : 'Xem thêm'}</button>}
-          {photoList.length > 0 && <div className="fin-review-grid__photos" aria-label={`Ảnh từ buổi chụp của ${review.customer_name}`}>{photoList.map((photo, index) => { const overflow = index === 2 && allPhotos.length > 3; return <button key={`${photo}-${index}`} type="button" className={overflow ? 'is-overflow' : ''} onClick={() => openReview(review)}><img src={photo} alt={`Ảnh buổi chụp ${index + 1}`} />{overflow && <span>+{allPhotos.length - 2}</span>}</button>; })}</div>}
+          {photoList.length > 0 && <div className="fin-review-grid__photos" aria-label={`Ảnh từ buổi chụp của ${review.customer_name}`}>{photoList.map((photo, index) => { const overflow = index === 2 && hasOverflow; return <button key={`${photo}-${index}`} type="button" className={overflow ? 'is-overflow' : ''} onClick={() => openReview(review)}><img src={photo} alt={`Ảnh buổi chụp ${index + 1}`} />{overflow && <span>+{allPhotos.length - 2}</span>}</button>; })}</div>}
           <footer><button type="button" className={likedIds.includes(review.id) ? 'is-liked' : ''} onClick={() => toggleLike(review.id)} aria-label={`Thích đánh giá của ${review.customer_name}`}><ThumbsUp /> Thích ({likes})</button><button type="button" className="fin-review-card__read" onClick={() => openReview(review)}>Đọc đầy đủ <ArrowRight /></button></footer>
         </article>;
       })}</div>
