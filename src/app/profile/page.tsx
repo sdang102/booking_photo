@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { CalendarCheck2, KeyRound, Mail, Pencil, Phone, Save, UserRound } from 'lucide-react';
 import RoleGuard from '@/components/RoleGuard';
 import BrandLogo from '@/components/BrandLogo';
+import { DEFAULT_AVATAR_URL } from '@/lib/avatar';
 import { useAuth } from '@/lib/context/AuthContext';
 import { getUserBookings } from '@/lib/services/bookingService';
 import LogoutButton from '@/components/LogoutButton';
@@ -132,7 +133,7 @@ export default function Profile() {
 
         <div className="profile-avatar-editor mt-6">
           <div className="profile-avatar-editor__image">
-            {user?.avatar_url ? <img src={user.avatar_url} alt="Ảnh đại diện" width="160" height="160" loading="lazy" decoding="async" /> : <UserRound aria-hidden="true" />}
+            <img src={user?.avatar_url || DEFAULT_AVATAR_URL} alt="Ảnh đại diện" width="160" height="160" loading="lazy" decoding="async" />
             <label className="profile-avatar-editor__pencil" title="Đổi ảnh đại diện">
               <Pencil aria-hidden="true" />
               <input type="file" accept="image/*" onChange={handleAvatar} disabled={avatarBusy} />

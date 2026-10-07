@@ -4,10 +4,9 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowRight, CheckCircle2, Quote, Star } from 'lucide-react';
 import { Stars } from '@/components/ReviewCard';
-import { getUserReviewLikes, toggleReviewLike as persistReviewLike } from '@/lib/services/reviewService';
-import { useAuth } from '@/lib/context/AuthContext';
 import type { ExperienceReview, PublicReviewCursor, PublicReviewPage, PublicReviewSummary } from '@/types';
 import PublicMotionRoot from '@/components/motion/PublicMotionRoot';
 import PublicReviewCard from './PublicReviewCard';
@@ -19,18 +18,11 @@ export default function ReviewsPage({ initialPage, initialSummary }: { initialPa
   const [rating, setRating] = useState(0);
   const [selected, setSelected] = useState<ExperienceReview | null>(null);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
-  const [likedIds, setLikedIds] = useState<string[]>([]);
-  const [likeCounts, setLikeCounts] = useState<Record<string, number>>(() => Object.fromEntries(initialPage.reviews.map((review) => [review.id, review.likes ?? 0])));
   const [clock, setClock] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const { user } = useAuth();
 
   useEffect(() => { setClock(Date.now()); }, []);
-  useEffect(() => {
-    setLikeCounts(Object.fromEntries(reviews.map((review) => [review.id, review.likes ?? 0])));
-    void getUserReviewLikes(reviews.map((review) => review.id)).then(setLikedIds);
-  }, [reviews, user]);
   useEffect(() => {
     const id = window.location.hash.replace('#review-', '');
     if (id) setSelected(reviews.find((item) => item.id === id) ?? null);
@@ -52,19 +44,6 @@ export default function ReviewsPage({ initialPage, initialSummary }: { initialPa
   const featured = reviews.find((review) => review.is_featured) ?? reviews[0];
   const openReview = (review: ExperienceReview) => { setSelected(review); window.history.replaceState(null, '', `#review-${review.id}`); };
   const closeReview = () => { setSelected(null); window.history.replaceState(null, '', window.location.pathname); };
-  const toggleLike = async (id: string) => {
-    const wasLiked = likedIds.includes(id);
-    setLikedIds((current) => wasLiked ? current.filter((value) => value !== id) : [...current, id]);
-    setLikeCounts((current) => ({ ...current, [id]: Math.max(0, (current[id] ?? 0) + (wasLiked ? -1 : 1)) }));
-    const result = await persistReviewLike(id);
-    if (result.success) {
-      setLikedIds((current) => result.liked ? (current.includes(id) ? current : [...current, id]) : current.filter((value) => value !== id));
-      setLikeCounts((current) => ({ ...current, [id]: result.likeCount }));
-    } else if (user) {
-      setLikedIds((current) => wasLiked ? [...current, id] : current.filter((value) => value !== id));
-      setLikeCounts((current) => ({ ...current, [id]: Math.max(0, (current[id] ?? 0) + (wasLiked ? 1 : -1)) }));
-    }
-  };
   const relativeTime = (value: string) => {
     const days = clock ? Math.max(0, Math.floor((clock - new Date(value).getTime()) / 86400000)) : 0;
     if (days < 1) return 'Hôm nay';
@@ -93,12 +72,12 @@ export default function ReviewsPage({ initialPage, initialSummary }: { initialPa
     <section className="fin-review-overview"><div className="fin-shell"><div className="fin-review-distribution"><header><span>Phân bố đánh giá</span><strong>{initialSummary.totalReviews} phản hồi</strong></header>{distribution.map((item) => <div key={item.value}><span>{item.value} <Star /></span><i><b style={{ width: `${item.percent}%` }} /></i><small>{item.count}</small></div>)}</div>{featured && <article className="fin-review-featured" data-reveal><Quote /><span>Chia sẻ nổi bật</span><blockquote>“{featured.comment}”</blockquote><footer><div><strong>{featured.customer_name}</strong><small>{featured.service_title}</small></div><span><CheckCircle2 /> Đã xác thực</span></footer></article>}</div></section>
     <section className="fin-review-library"><div className="fin-shell"><header className="fin-review-library__head"><div><p className="fin-kicker"><span /> Customer stories</p><h2>Khách hàng nói gì<br />về FIN PHOTO.</h2></div><p>Mỗi đánh giá được liên kết với một lịch chụp đã hoàn thành. Bạn có thể lọc theo số sao hoặc mở từng câu chuyện để xem đầy đủ.</p></header>
       <div className="fin-review-filters" aria-label="Lọc đánh giá">{[0, 5, 4, 3, 2, 1].map((value) => <button key={value} type="button" className={rating === value ? 'is-active' : ''} onClick={() => setRating(value)}>{value ? <>{value}<Star /></> : 'Tất cả'}<span>{value ? initialSummary.distribution[value] ?? 0 : initialSummary.totalReviews}</span></button>)}</div>
-      <div className="fin-review-grid">{filtered.map((review) => <PublicReviewCard key={review.id} review={review} expanded={expandedIds.includes(review.id)} liked={likedIds.includes(review.id)} likes={likeCounts[review.id] ?? review.likes ?? 0} relativeTime={relativeTime} onToggleExpanded={() => setExpandedIds((current) => expandedIds.includes(review.id) ? current.filter((id) => id !== review.id) : [...current, review.id])} onOpen={() => openReview(review)} onToggleLike={() => void toggleLike(review.id)} />)}</div>
+      <div className="fin-review-grid">{filtered.map((review) => <PublicReviewCard key={review.id} review={review} expanded={expandedIds.includes(review.id)} relativeTime={relativeTime} onToggleExpanded={() => setExpandedIds((current) => expandedIds.includes(review.id) ? current.filter((id) => id !== review.id) : [...current, review.id])} onOpen={() => openReview(review)} />)}</div>
       {loadError && <p className="mt-6 text-center text-sm text-rose-700">{loadError}</p>}
       {nextCursor && <button type="button" onClick={() => void loadMore()} disabled={loadingMore} className="mx-auto mt-8 block rounded-xl border border-sky-300 px-5 py-3 text-sm font-bold disabled:opacity-60">{loadingMore ? 'Đang tải…' : 'Tải thêm đánh giá'}</button>}
       {!filtered.length && <p className="fin-review-empty">Chưa có đánh giá phù hợp với bộ lọc này.</p>}
     </div></section>
     <section className="fin-review-cta"><div className="fin-shell"><div><p className="fin-kicker"><span /> Trải nghiệm của riêng bạn</p><h2>Sẵn sàng tạo nên câu chuyện tiếp theo?</h2></div><Link href="/booking">Đặt lịch cùng FIN PHOTO <ArrowRight /></Link></div></section>
-    {selected && <PublicReviewDetail review={selected} onClose={closeReview} />}
+    {selected && typeof document !== 'undefined' && createPortal(<PublicReviewDetail review={selected} onClose={closeReview} />, document.body)}
   </main></PublicMotionRoot>;
 }

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Check, Clock3, Images, Plus } from 'lucide-react';
-import type { Service, ServiceAddon } from '@/types';
+import type { FaqItem, Service, ServiceAddon } from '@/types';
 import { MOCK_SERVICES } from '@/lib/data/mockData';
 import { formatVND } from './ServiceCard';
 import PublicMotionRoot from './motion/PublicMotionRoot';
@@ -15,15 +15,16 @@ const defaultExtras: ServiceAddon[] = [
   {id:'extra-book',title:'Photobook mỹ thuật',description:'In album cao cấp trên giấy fine-art bền màu.',price:1200000,price_label:'Từ 1.200.000đ'},
 ];
 
-const faqs = [
+const defaultFaqs: Array<[string, string]> = [
   ['Cần đặt lịch trước thời điểm dự kiến bao lâu?', 'Bạn nên đặt trước 1–2 tuần; cuối tuần và mùa cưới nên đặt trước 3–4 tuần.'],
   ['Quy trình chỉnh sửa và bàn giao ảnh mất bao lâu?', 'Ảnh xem trước được gửi trong 3 ngày; ảnh hoàn thiện bàn giao trong 10–15 ngày làm việc.'],
   ['Tôi có thể mang theo trang phục cá nhân không?', 'Có. FIN PHOTO sẽ tư vấn cách phối và ưu tiên những trang phục thể hiện đúng phong cách của bạn.'],
 ];
 
-export default function FinServicesPage({ initialServices = MOCK_SERVICES, initialExtras = defaultExtras }: { initialServices?: Service[]; initialExtras?: ServiceAddon[] }) {
+export default function FinServicesPage({ initialServices = MOCK_SERVICES, initialExtras = defaultExtras, initialFaqs }: { initialServices?: Service[]; initialExtras?: ServiceAddon[]; initialFaqs?: FaqItem[] | null }) {
   const [services] = useState<Service[]>(initialServices);
   const [extras] = useState<ServiceAddon[]>(initialExtras);
+  const [faqs] = useState<Array<[string, string]>>(() => initialFaqs === null || initialFaqs === undefined ? defaultFaqs : initialFaqs.map((faq) => [faq.question, faq.answer]));
   const [open, setOpen] = useState(0);
   const plans = services.slice(0, 3);
 

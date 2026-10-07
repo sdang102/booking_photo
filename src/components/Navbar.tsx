@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Aperture, ArrowUpRight, CalendarDays, House, Images, Menu, PackageOpen, Settings, Star, User, X } from 'lucide-react';
 import { useAuth } from '@/lib/context/AuthContext';
+import { DEFAULT_AVATAR_URL } from '@/lib/avatar';
 import BrandLogo from './BrandLogo';
 import LogoutButton from './LogoutButton';
 
@@ -120,7 +121,7 @@ export default function Navbar({
             {user ? (
               <div className="site-nav__user">
                 <button type="button" onClick={() => setAccountOpen((value) => !value)} className="nav-icon nav-icon--user" title="Quản lý tài khoản" aria-expanded={accountOpen}>
-                  <span className="site-nav__user-avatar">{user.avatar_url ? <img src={user.avatar_url} alt="" width="40" height="40" loading="lazy" decoding="async" /> : <User />}</span>
+                  <span className="site-nav__user-avatar"><img src={user.avatar_url || DEFAULT_AVATAR_URL} alt="Ảnh đại diện" width="40" height="40" loading="lazy" decoding="async" /></span>
                 </button>
               </div>
             ) : (
@@ -136,7 +137,7 @@ export default function Navbar({
       {user && accountOpen && (
         <aside className="nav-account-panel" aria-label="Quản lý tài khoản">
           <button type="button" onClick={() => setAccountOpen(false)} className="nav-account-panel__close" aria-label="Đóng quản lý tài khoản"><X /></button>
-          <Link href="/profile" onClick={() => setAccountOpen(false)} className="nav-account-panel__avatar" aria-label="Mở hồ sơ và đổi ảnh đại diện">{user.avatar_url ? <img src={user.avatar_url} alt="Ảnh đại diện" width="72" height="72" loading="lazy" decoding="async" /> : <User />}</Link>
+          <Link href="/profile" onClick={() => setAccountOpen(false)} className="nav-account-panel__avatar" aria-label="Mở hồ sơ và đổi ảnh đại diện"><img src={user.avatar_url || DEFAULT_AVATAR_URL} alt="Ảnh đại diện" width="72" height="72" loading="lazy" decoding="async" /></Link>
           <span>Tài khoản của bạn</span>
           <strong>{user.full_name}</strong>
           <small>{user.email}</small>

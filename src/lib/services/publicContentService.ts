@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { MOCK_SERVICES, MOCK_REVIEWS } from '@/lib/data/mockData';
 import type {
   ExperienceReview,
+  FaqItem,
   HomepageSection,
   PortfolioAlbum,
   PortfolioImage,
@@ -240,8 +241,9 @@ async function queryServices(): Promise<Service[]> {
     const { data, error } = await publicClient()
       .from('services')
       .select('id,name,slug,description,short_description,price,duration_minutes,features,cover_image,is_featured,edited_photo_count,concept_count,location_count,categories(slug)')
+      .eq('is_active', true)
       .order('price', { ascending: true });
-    if (!error && data?.length) {
+    if (!error && data) {
       return data.map((row) => {
         const category = relation(row.categories as { slug?: string } | Array<{ slug?: string }> | null);
         return {
@@ -276,6 +278,23 @@ async function queryAddons(): Promise<ServiceAddon[]> {
 
 export const getPublicServiceAddons = unstable_cache(queryAddons, ['public-service-addons'], { revalidate: 300, tags: [CONTENT_TAG] });
 
+async function queryFaqs(): Promise<FaqItem[] | null> {
+  const { data, error } = await publicClient()
+    .from('faqs')
+    .select('id,question,answer,display_order')
+    .eq('is_visible', true)
+    .order('display_order', { ascending: true });
+  if (error) return null;
+  return (data ?? []).map((item) => ({
+    id: String(item.id),
+    question: String(item.question),
+    answer: String(item.answer),
+    display_order: Number(item.display_order ?? 0),
+  }));
+}
+
+export const getPublicFaqs = unstable_cache(queryFaqs, ['public-faqs'], { revalidate: 300, tags: [CONTENT_TAG] });
+
 function mapReview(row: ReviewRow): ExperienceReview {
   const booking = relation(row.bookings);
   const album = relation(row.portfolio_albums);
@@ -300,18 +319,16 @@ async function enrichReviewRows(client: ReturnType<typeof publicClient>, data: R
   const reviewIds = data.map((row) => row.id);
   const userIds = data.map((row) => row.user_id).filter((id): id is string => Boolean(id));
   const media = new Map<string, { thumbnails: string[]; full: string[] }>();
-  const avatars = new Map<string, string>();
-  const likes = new Map<string, number>();
+  const authors = new Map<string, { name?: string; avatar?: string; service?: string }>();
   try {
-    const [{ data: images }, { data: authors }, { data: likeCounts }] = await Promise.all([
+    const [{ data: images }, { data: profiles }] = await Promise.all([
       (async () => {
         const modern = await client.from('review_images').select('review_id,image_url,thumb_url,display_order').in('review_id', reviewIds).order('display_order');
         if (!modern.error) return modern;
         const legacy = await client.from('review_images').select('review_id,image_url,display_order').in('review_id', reviewIds).order('display_order');
         return { ...legacy, data: legacy.data?.map((row) => ({ ...row, thumb_url: null })) ?? null };
       })(),
-      client.rpc('get_public_review_authors', { target_ids: userIds }),
-      client.rpc('get_review_like_counts', { target_review_ids: reviewIds }),
+      client.rpc('get_public_review_profiles', { target_ids: reviewIds }),
     ]);
     (images ?? []).forEach((image) => {
       if (!image.review_id || !image.image_url) return;
@@ -320,10 +337,24 @@ async function enrichReviewRows(client: ReturnType<typeof publicClient>, data: R
       current.full.push(image.image_url);
       media.set(image.review_id, current);
     });
-    (authors ?? []).forEach((author: { id: string; avatar_url: string | null }) => { if (author.avatar_url) avatars.set(author.id, author.avatar_url); });
-    (likeCounts ?? []).forEach((like: { review_id: string; like_count: number | string }) => { likes.set(like.review_id, Number(like.like_count ?? 0)); });
+    (profiles ?? []).forEach((profile: { review_id: string; full_name: string | null; avatar_url: string | null; service_title: string | null }) => {
+      if (profile.review_id) authors.set(profile.review_id, { name: profile.full_name ?? undefined, avatar: profile.avatar_url ?? undefined, service: profile.service_title ?? undefined });
+    });
   } catch { /* Optional review media/avatar/like migrations may not exist yet. */ }
-  return data.map((row) => ({ ...mapReview(row), avatar_url: row.user_id ? avatars.get(row.user_id) : undefined, photos: media.get(row.id)?.thumbnails ?? [], photo_urls: media.get(row.id)?.full ?? [], likes: likes.get(row.id) ?? 0 }));
+  if (!authors.size && userIds.length) {
+    try {
+      const { data: legacyAuthors } = await client.rpc('get_public_review_authors', { target_ids: userIds });
+      (legacyAuthors ?? []).forEach((author: { id: string; avatar_url: string | null }) => {
+        const review = data.find((row) => row.user_id === author.id);
+        if (review) authors.set(review.id, { avatar: author.avatar_url ?? undefined });
+      });
+    } catch { /* The legacy author helper is optional during migration rollout. */ }
+  }
+  return data.map((row) => {
+    const mapped = mapReview(row);
+    const author = authors.get(row.id);
+    return { ...mapped, customer_name: author?.name || mapped.customer_name, service_title: author?.service || mapped.service_title, avatar_url: author?.avatar, photos: media.get(row.id)?.thumbnails ?? [], photo_urls: media.get(row.id)?.full ?? [] };
+  });
 }
 
 async function queryReviewPage(cursor?: PublicReviewCursor | null, limit = PUBLIC_REVIEW_PAGE_SIZE): Promise<PublicReviewPage> {
@@ -374,17 +405,30 @@ export async function getPublicReviewSummary(): Promise<PublicReviewSummary> {
     if (!error && data) {
       const rows = data as Array<{ average_rating: number | string; total_reviews: number | string; rating: number; rating_count: number | string }>;
       const first = rows[0];
-      return {
-        averageRating: Number(first?.average_rating ?? 0),
-        totalReviews: Number(first?.total_reviews ?? 0),
-        distribution: Object.fromEntries(rows.map((row) => [Number(row.rating), Number(row.rating_count)])),
-      };
+      if (first && Number(first.total_reviews ?? 0) > 0) {
+        return {
+          averageRating: Number(first.average_rating ?? 0),
+          totalReviews: Number(first.total_reviews ?? 0),
+          distribution: Object.fromEntries(rows.map((row) => [Number(row.rating), Number(row.rating_count)])),
+        };
+      }
     }
   } catch { /* Fall through to the local development summary. */ }
+  try {
+    const { data, error } = await publicClient().from('reviews').select('rating').eq('is_public', true);
+    if (!error && data) {
+      const ratings = data.map((row) => Number(row.rating)).filter((value) => value >= 1 && value <= 5);
+      return summarizeRatings(ratings);
+    }
+  } catch { /* Fall through to local fixtures when the public table is unavailable. */ }
   const reviews = process.env.NODE_ENV !== 'production' ? MOCK_REVIEWS.filter((review) => review.is_public) : [];
+  return summarizeRatings(reviews.map((review) => review.rating));
+}
+
+function summarizeRatings(ratings: number[]): PublicReviewSummary {
   return {
-    averageRating: reviews.length ? Math.round((reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length) * 10) / 10 : 0,
-    totalReviews: reviews.length,
-    distribution: Object.fromEntries([1, 2, 3, 4, 5].map((rating) => [rating, reviews.filter((review) => review.rating === rating).length])),
+    averageRating: ratings.length ? Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10) / 10 : 0,
+    totalReviews: ratings.length,
+    distribution: Object.fromEntries([1, 2, 3, 4, 5].map((rating) => [rating, ratings.filter((value) => value === rating).length])),
   };
 }

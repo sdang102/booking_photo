@@ -6,8 +6,15 @@ import type { BookingQueryOptions } from './bookingReadService';
 export interface BookingRevenueSummary {
   total: number;
   realized: number;
+  expected: number;
   atVenue: number;
   activeCount: number;
+}
+
+export interface BookingRevenueFilters {
+  status?: BookingStatus | 'all';
+  fromDate?: string;
+  toDate?: string;
 }
 
 export interface BookingFinancialRecord {
@@ -19,13 +26,15 @@ export interface BookingFinancialRecord {
   status: BookingStatus;
 }
 
-export async function getBookingFinancialRecords({ limit = 50, offset = 0 }: Pick<BookingQueryOptions, 'limit' | 'offset'> = {}): Promise<BookingFinancialRecord[]> {
-  const { data, error } = await createClient()
+export async function getBookingFinancialRecords({ limit = 50, offset = 0, statuses, fromDate, toDate }: BookingQueryOptions = {}): Promise<BookingFinancialRecord[]> {
+  let query = createClient()
     .from(TABLE_NAME)
     .select('id,shoot_date,service_name_snapshot,total_price,payment_status,status')
-    .neq('status', 'cancelled')
-    .order('shoot_date', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .order('shoot_date', { ascending: false });
+  if (statuses?.length) query = query.in('status', statuses);
+  if (fromDate) query = query.gte('shoot_date', fromDate);
+  if (toDate) query = query.lte('shoot_date', toDate);
+  const { data, error } = await query.range(offset, offset + limit - 1);
   if (error || !data) return [];
   return data.map((row) => ({
     id: String(row.id),
@@ -37,19 +46,27 @@ export async function getBookingFinancialRecords({ limit = 50, offset = 0 }: Pic
   }));
 }
 
-export async function getBookingRevenueSummary(): Promise<BookingRevenueSummary> {
-  const { data, error } = await createClient().rpc('get_admin_booking_revenue_summary');
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!error && row) {
-    const value = row as Record<string, unknown>;
-    return {
-      total: Number(value.total_active ?? 0),
-      realized: Number(value.realized ?? 0),
-      atVenue: Number(value.at_venue ?? 0),
-      activeCount: Number(value.active_count ?? 0),
-    };
-  }
-  throw new Error(error?.message || 'Không thể tải tổng hợp doanh thu từ database. Hãy kiểm tra RPC quản trị.');
+export async function getBookingRevenueSummary(filters: BookingRevenueFilters = {}): Promise<BookingRevenueSummary> {
+  let query = createClient()
+    .from(TABLE_NAME)
+    .select('total_price,status,shoot_date');
+  if (filters.status && filters.status !== 'all') query = query.eq('status', filters.status);
+  if (filters.fromDate) query = query.gte('shoot_date', filters.fromDate);
+  if (filters.toDate) query = query.lte('shoot_date', filters.toDate);
+  const { data, error } = await query;
+  if (error || !data) return { total: 0, realized: 0, expected: 0, atVenue: 0, activeCount: 0 };
+
+  const rows = data as Array<{ total_price: number | string | null; status: BookingStatus }>;
+  const amount = (status?: BookingStatus) => rows
+    .filter((row) => row.status !== 'cancelled' && (!status || row.status === status))
+    .reduce((sum, row) => sum + Number(row.total_price ?? 0), 0);
+  return {
+    total: amount(),
+    realized: amount('completed'),
+    expected: amount('confirmed'),
+    atVenue: rows.filter((row) => !['cancelled', 'completed'].includes(row.status)).reduce((sum, row) => sum + Number(row.total_price ?? 0), 0),
+    activeCount: rows.filter((row) => !['cancelled', 'completed'].includes(row.status)).length,
+  };
 }
 
 export { BOOKING_SELECT };

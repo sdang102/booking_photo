@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Cog, HelpCircle, Home, ImageIcon, LayoutDashboard, MapPin, MessageSquare, Package, Tags } from 'lucide-react';
+import { BarChart3, Cog, HelpCircle, ImageIcon, LayoutDashboard, MessageSquare, Package, Tags } from 'lucide-react';
 import RoleGuard from '@/components/RoleGuard';
 import BrandLogo from '@/components/BrandLogo';
 import LogoutButton from '@/components/LogoutButton';
@@ -10,15 +10,11 @@ import { useAuth } from '@/lib/context/AuthContext';
 
 const NAV=[
   {href:'/admin',label:'Tổng quan',icon:LayoutDashboard,exact:true},
-  {href:'/admin/homepage',label:'Trang chủ',icon:Home},
   {href:'/admin/services',label:'Gói chụp',icon:Package},
   {href:'/admin/addons',label:'Dịch vụ bổ sung',icon:Package},
   {href:'/admin/categories',label:'Danh mục',icon:Tags},
-  {href:'/admin/portfolio',label:'Portfolio',icon:ImageIcon},
   {href:'/admin/albums',label:'Albums',icon:ImageIcon},
-  {href:'/admin/locations',label:'Địa điểm',icon:MapPin},
   {href:'/admin/faq',label:'FAQ',icon:HelpCircle},
-  {href:'/admin/media',label:'Media',icon:ImageIcon},
   {href:'/admin/reviews',label:'Đánh giá',icon:MessageSquare},
   {href:'/admin/revenue',label:'Doanh thu',icon:BarChart3},
   {href:'/admin/settings',label:'Cài đặt',icon:Cog},

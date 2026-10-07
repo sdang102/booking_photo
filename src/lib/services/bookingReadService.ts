@@ -24,6 +24,7 @@ export async function getServices(): Promise<Service[]> {
     const { data, error } = await createClient()
       .from('services')
       .select('id,name,slug,description,short_description,price,duration_minutes,features,cover_image,is_featured,edited_photo_count,concept_count,location_count,categories(slug)')
+      .eq('is_active', true)
       .order('price', { ascending: true });
 
     if (!error && data && data.length > 0) {
