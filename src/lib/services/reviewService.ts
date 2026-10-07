@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import { MOCK_REVIEWS } from '@/lib/data/mockData';
 import type { ExperienceReview, ReviewSummary } from '@/types';
+import { prepareImage, uploadPreparedImage } from '@/lib/services/imageUploadService';
 
 const STORAGE_KEY = 'photo_reviews_v1';
 const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -16,6 +17,16 @@ function localReviews(): ExperienceReview[] {
 function save(reviews: ExperienceReview[]) { if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(reviews)); }
 function firstRelation<T>(value: T | T[] | null | undefined): T | undefined { return Array.isArray(value) ? value[0] : value ?? undefined; }
 
+async function reviewMedia(reviewIds: string[]) {
+  if (!reviewIds.length) return new Map<string, string[]>();
+  try {
+    const { data } = await createClient().from('review_images').select('review_id,image_url,display_order').in('review_id', reviewIds).order('display_order');
+    const result = new Map<string, string[]>();
+    (data ?? []).forEach((row) => { if (row.review_id && row.image_url) result.set(row.review_id, [...(result.get(row.review_id) ?? []), row.image_url]); });
+    return result;
+  } catch { return new Map<string, string[]>(); }
+}
+
 export async function getReviews(options: { publicOnly?: boolean; featuredFirst?: boolean; limit?: number } = {}): Promise<ExperienceReview[]> {
   try {
     const supabase = createClient();
@@ -26,14 +37,18 @@ export async function getReviews(options: { publicOnly?: boolean; featuredFirst?
     query = query.order('created_at', { ascending: false });
     if (options.limit) query = query.limit(options.limit);
     const { data, error } = await query;
-    if (!error && data) return data.map((row) => {
+    if (!error && data) {
+      const media = await reviewMedia(data.map((row) => row.id));
+      return data.map((row) => {
       const booking = firstRelation(row.bookings);
       const album = firstRelation(row.portfolio_albums);
       return { id: row.id, booking_id: row.booking_id, user_id: row.user_id,
         customer_name: booking?.customer_name ?? 'Khách hàng', rating: row.rating, comment: row.comment,
         service_title: booking?.service_name_snapshot ?? '', portfolio_slug: album?.slug,
+        photos: media.get(row.id) ?? [], likes: 0,
         is_public: row.is_public, is_featured: row.is_featured, created_at: row.created_at, updated_at: row.updated_at };
-    }) as ExperienceReview[];
+      }) as ExperienceReview[];
+    }
   } catch { /* local fallback */ }
   if (!isDevelopment) return [];
   let reviews = localReviews();
@@ -67,15 +82,19 @@ export async function canReviewBooking(bookingId: string): Promise<{ allowed: bo
   return { allowed: true };
 }
 
-export async function createReview(input: { bookingId: string; userId?: string; customerName: string; serviceTitle: string; rating: number; comment: string }): Promise<{ success: boolean; review?: ExperienceReview; message?: string }> {
+export async function createReview(input: { bookingId: string; userId?: string; customerName: string; serviceTitle: string; rating: number; comment: string; photos?: File[] }): Promise<{ success: boolean; review?: ExperienceReview; message?: string }> {
   const comment = input.comment.trim();
   if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) return { success: false, message: 'Vui lòng chọn từ 1 đến 5 sao.' };
   if (comment.length < 10 || comment.length > 800) return { success: false, message: 'Nội dung đánh giá cần từ 10 đến 800 ký tự.' };
+  if ((input.photos?.length ?? 0) < 1 || (input.photos?.length ?? 0) > 5) return { success: false, message: 'Vui lòng chọn từ 1 đến 5 ảnh cho đánh giá.' };
   try {
     const { data, error } = await createClient().rpc('review_completed_booking', { target_booking: input.bookingId, target_rating: input.rating, target_comment: comment });
     if (!error && data) {
+      const row = Array.isArray(data) ? data[0] : data;
+      const reviewId = typeof row === 'object' && row && 'id' in row ? String((row as { id: string }).id) : undefined;
+      if (reviewId && input.photos?.length) await uploadReviewPhotos(reviewId, input.photos, input.userId);
       if (typeof window !== 'undefined') window.dispatchEvent(new Event('review-created'));
-      return { success: true };
+      return { success: true, review: reviewId ? { id: reviewId, booking_id: input.bookingId, user_id: input.userId, customer_name: input.customerName, rating: input.rating, comment, service_title: input.serviceTitle, photos: [], likes: 0, is_public: true, is_featured: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } : undefined };
     }
     if (error?.code === '23505') return { success:false, message:'Booking này đã được đánh giá.' };
     if (error && /not reviewable|completed|booking/i.test(error.message)) return { success:false, message:'Chỉ booking đã hoàn thành của bạn mới có thể đánh giá.' };
@@ -83,10 +102,27 @@ export async function createReview(input: { bookingId: string; userId?: string; 
   if (!isDevelopment) return { success: false, message: 'Không thể lưu đánh giá vào database.' };
   const permission = await canReviewBooking(input.bookingId);
   if (!permission.allowed) return { success: false, message: permission.reason };
-  const now = new Date().toISOString(); const review: ExperienceReview = { id: `rv-${Date.now()}`, booking_id: input.bookingId, user_id: input.userId, customer_name: input.customerName, rating: input.rating, comment, service_title: input.serviceTitle, is_public: true, is_featured: false, created_at: now, updated_at: now };
+  const now = new Date().toISOString(); const review: ExperienceReview = { id: `rv-${Date.now()}`, booking_id: input.bookingId, user_id: input.userId, customer_name: input.customerName, rating: input.rating, comment, service_title: input.serviceTitle, photos: [], likes: 0, is_public: true, is_featured: false, created_at: now, updated_at: now };
   save([review, ...localReviews()]);
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('review-created'));
   return { success: true, review };
+}
+
+async function uploadReviewPhotos(reviewId: string, files: File[], userId?: string) {
+  if (!userId || !files.length) return;
+  const supabase = createClient();
+  const uploaded: Array<{ url: string; path: string }> = [];
+  try {
+    for (const [index, file] of files.slice(0, 5).entries()) {
+      const prepared = await prepareImage(file, { maxDimension: 1800, quality: 0.84 });
+      const image = await uploadPreparedImage(prepared, file.name, { bucket: 'review-media', folder: userId });
+      uploaded.push({ url: image.url, path: image.path });
+      const { error } = await supabase.from('review_images').insert({ review_id: reviewId, user_id: userId, image_url: image.url, storage_path: image.path, display_order: index });
+      if (error) throw error;
+    }
+  } catch {
+    // The review itself remains valid when the optional media migration is not deployed yet.
+  }
 }
 
 export async function updateReviewModeration(id: string, patch: Partial<Pick<ExperienceReview, 'is_public' | 'is_featured' | 'portfolio_slug'>>): Promise<void> {

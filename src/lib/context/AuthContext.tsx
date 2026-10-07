@@ -5,6 +5,7 @@ import type { AppRole, UserProfile } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 import { hasRole, normalizeRoles, rolesFromAuthMetadata } from '@/lib/auth/permissions';
 import { normalizeVietnameseMobile, VIETNAMESE_MOBILE_ERROR } from '@/lib/phone';
+import { prepareImage, removeStorageImages, uploadPreparedImage } from '@/lib/services/imageUploadService';
 
 interface AuthResult { success: boolean; roles?: AppRole[]; message?: string; requiresEmailConfirmation?: boolean }
 interface AuthContextType {
@@ -15,7 +16,9 @@ interface AuthContextType {
   login: (email: string, password?: string) => Promise<AuthResult>;
   register: (email: string, password: string, fullName: string, phone: string) => Promise<AuthResult>;
   resendConfirmation: (email: string) => Promise<AuthResult>;
-  updateProfile: (fullName: string, email: string, phone: string) => Promise<AuthResult>;
+  updateProfile: (fullName: string, phone: string) => Promise<AuthResult>;
+  updateAvatar: (file: File) => Promise<AuthResult>;
+  changePassword: (currentPassword: string, nextPassword: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
 }
 
@@ -54,22 +57,28 @@ async function profileFromSupabase(authUser: { id:string; email?:string; user_me
 
     if (!contextError && contextRow) {
       const row = contextRow as Record<string, unknown>;
+      let avatarUrl = typeof row.avatar_url === 'string' ? row.avatar_url : undefined;
+      if (!avatarUrl) {
+        const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', authUser.id).maybeSingle();
+        avatarUrl = typeof avatarRow?.avatar_url === 'string' ? avatarRow.avatar_url : undefined;
+      }
       profile = {
         id: authUser.id,
         email: authUser.email || String(row.email || ''),
         full_name: String(row.full_name || authUser.user_metadata?.full_name || 'Khách hàng'),
         phone: String(row.phone || authUser.user_metadata?.phone || ''),
+        avatar_url: avatarUrl,
         roles: normalizeRoles(row.roles),
       };
     } else {
       // Backward-compatible while the Phase 1 migration is waiting to be applied.
       const [{ data }, { data: isAdmin }, { data: isPhotographer }] = await Promise.all([
-        supabase.from('profiles').select('full_name,email,phone').eq('id', authUser.id).maybeSingle(),
+        supabase.from('profiles').select('full_name,email,phone,avatar_url').eq('id', authUser.id).maybeSingle(),
         supabase.rpc('has_role', { required_role: 'admin' }),
         supabase.rpc('has_role', { required_role: 'photographer' }),
       ]);
       const dbRoles: AppRole[] = [isAdmin && 'admin', isPhotographer && 'photographer'].filter((role): role is AppRole => Boolean(role));
-      profile = { id:authUser.id,email:authUser.email || data?.email || '',full_name:data?.full_name || String(authUser.user_metadata?.full_name || 'Khách hàng'),phone:data?.phone || String(authUser.user_metadata?.phone || ''),roles:dbRoles.length?normalizeRoles(dbRoles):rolesFromAuthMetadata(authUser.app_metadata,authUser.user_metadata) };
+      profile = { id:authUser.id,email:authUser.email || data?.email || '',full_name:data?.full_name || String(authUser.user_metadata?.full_name || 'Khách hàng'),phone:data?.phone || String(authUser.user_metadata?.phone || ''),avatar_url:data?.avatar_url || undefined,roles:dbRoles.length?normalizeRoles(dbRoles):rolesFromAuthMetadata(authUser.app_metadata,authUser.user_metadata) };
     }
     profileCache = { userId: authUser.id, value: profile, expiresAt: Date.now() + PROFILE_CACHE_MS };
     return profile;
@@ -190,34 +199,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }catch{return{success:false,message:'Không thể gửi lại email xác nhận lúc này.'}}
   };
 
-  const updateProfile = async (fullName: string, email: string, phone: string): Promise<AuthResult> => {
+  const updateProfile = async (fullName: string, phone: string): Promise<AuthResult> => {
     if (!user) return { success:false, message:'Vui lòng đăng nhập lại để cập nhật hồ sơ.' };
     const cleanName=fullName.trim();
-    const cleanEmail=email.trim().toLowerCase();
     const cleanPhone=normalizeVietnameseMobile(phone);
     if(!cleanName)return{success:false,message:'Vui lòng nhập họ và tên.'};
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))return{success:false,message:'Vui lòng nhập email hợp lệ.'};
     if(!cleanPhone)return{success:false,message:VIETNAMESE_MOBILE_ERROR};
     try{
       const supabase=createClient();
-      const authChanges:{email?:string;data:{full_name:string;phone:string}}={data:{full_name:cleanName,phone:cleanPhone}};
-      if(cleanEmail!==user.email.toLowerCase())authChanges.email=cleanEmail;
-      const{data:authData,error:authError}=await supabase.auth.updateUser(authChanges);
+      const authChanges={data:{full_name:cleanName,phone:cleanPhone}};
+      const{error:authError}=await supabase.auth.updateUser(authChanges);
       if(authError)return{success:false,message:authErrorMessage(authError)};
-      const effectiveEmail=authData.user?.email?.toLowerCase()||user.email;
-      const{error:profileError}=await supabase.from('profiles').update({full_name:cleanName,email:cleanEmail,phone:cleanPhone}).eq('id',user.id);
+      const{error:profileError}=await supabase.from('profiles').update({full_name:cleanName,phone:cleanPhone}).eq('id',user.id);
       if(profileError)return{success:false,message:profileError.message||'Không thể lưu hồ sơ.'};
-      const nextUser={...user,full_name:cleanName,email:effectiveEmail,phone:cleanPhone};
+      const nextUser={...user,full_name:cleanName,phone:cleanPhone};
       setUser(nextUser);
       profileCache={userId:user.id,value:nextUser,expiresAt:Date.now()+PROFILE_CACHE_MS};
-      const emailPending=cleanEmail!==effectiveEmail;
-      return{success:true,message:emailPending?'Đã lưu tên và số điện thoại. Hãy mở email mới để xác nhận thay đổi địa chỉ email.':'Đã cập nhật hồ sơ thành công.'};
+      return{success:true,message:'Đã cập nhật hồ sơ thành công.'};
     }catch(error){
       return{success:false,message:authErrorMessage(error instanceof Error?error:undefined)};
     }
   };
 
-  const value = { user, isAdmin: hasRole(user, 'admin'), isPhotographer: hasRole(user, 'photographer'), isLoading, login, register, resendConfirmation, updateProfile, logout };
+  const updateAvatar = async (file: File): Promise<AuthResult> => {
+    if (!user) return { success: false, message: 'Vui lòng đăng nhập lại để đổi ảnh đại diện.' };
+    try {
+      const prepared = await prepareImage(file, { maxDimension: 512, quality: 0.82 });
+      const uploaded = await uploadPreparedImage(prepared, file.name, { bucket: 'avatars', folder: user.id });
+      const { error } = await createClient().from('profiles').update({ avatar_url: uploaded.url }).eq('id', user.id);
+      if (error) {
+        await removeStorageImages('avatars', [uploaded.path]);
+        return { success: false, message: error.message || 'Không thể lưu ảnh đại diện.' };
+      }
+      const nextUser = { ...user, avatar_url: uploaded.url };
+      setUser(nextUser);
+      profileCache = { userId: user.id, value: nextUser, expiresAt: Date.now() + PROFILE_CACHE_MS };
+      return { success: true, message: 'Đã cập nhật ảnh đại diện.' };
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : 'Không thể tải ảnh đại diện.' };
+    }
+  };
+
+  const changePassword = async (currentPassword: string, nextPassword: string): Promise<AuthResult> => {
+    if (!user) return { success: false, message: 'Vui lòng đăng nhập lại để đổi mật khẩu.' };
+    if (nextPassword.length < 8) return { success: false, message: 'Mật khẩu mới cần ít nhất 8 ký tự.' };
+    try {
+      const supabase = createClient();
+      const { error: verifyError } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword });
+      if (verifyError) return { success: false, message: 'Mật khẩu hiện tại không đúng.' };
+      const { error } = await supabase.auth.updateUser({ password: nextPassword });
+      return error ? { success: false, message: authErrorMessage(error) } : { success: true, message: 'Đã đổi mật khẩu thành công.' };
+    } catch (error) {
+      return { success: false, message: authErrorMessage(error instanceof Error ? error : undefined) };
+    }
+  };
+
+  const value = { user, isAdmin: hasRole(user, 'admin'), isPhotographer: hasRole(user, 'photographer'), isLoading, login, register, resendConfirmation, updateProfile, updateAvatar, changePassword, logout };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

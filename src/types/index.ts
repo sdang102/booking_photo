@@ -54,6 +54,8 @@ export interface ExperienceReview {
   user_id?: string;
   customer_name: string;
   avatar_url?: string;
+  photos?: string[];
+  likes?: number;
   rating: number;
   comment: string;
   service_title: string;
@@ -103,6 +105,7 @@ export interface UserProfile {
   email: string;
   full_name: string;
   phone?: string;
+  avatar_url?: string;
   roles: AppRole[];
 }
 

@@ -104,7 +104,7 @@ export default function Navbar({
     <>
       <header className={`site-nav ${scrolled ? 'site-nav--scrolled' : ''} ${menuOpen ? 'site-nav--open' : ''} ${!navVisible && !menuOpen && !accountOpen ? 'site-nav--hidden' : ''}`}>
         <div className="site-nav__inner">
-          <BrandLogo />
+          <div className="site-nav__brand-group"><BrandLogo />{user && <Link href="/profile" className="site-nav__avatar" aria-label="Mở hồ sơ cá nhân"><span>{user.avatar_url ? <img src={user.avatar_url} alt="" /> : <User />}</span></Link>}</div>
           <nav className="site-nav__desktop" aria-label="Điều hướng chính">
             {links.map(({ label, href, icon: Icon }) => {
               const active = isActive(href);

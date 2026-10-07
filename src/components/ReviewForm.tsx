@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Star, X } from 'lucide-react';
+import { ImagePlus, Star, X } from 'lucide-react';
 import type { BookingPhotoRecord } from '@/types';
 import { createReview } from '@/lib/services/reviewService';
 
@@ -13,6 +13,10 @@ export default function ReviewForm({ booking, userId, onClose, onSuccess }: { bo
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+
+  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
 
   useEffect(() => {
     const body = document.body;
@@ -39,7 +43,8 @@ export default function ReviewForm({ booking, userId, onClose, onSuccess }: { bo
     if (submitting) return;
     setSubmitting(true);
     setMessage('');
-    const result = await createReview({ bookingId: booking.id, userId, customerName: booking.customer_name, serviceTitle: booking.service_title, rating, comment });
+    if (photos.length < 1) { setSubmitting(false); setMessage('Vui lòng chọn ít nhất 1 ảnh từ buổi chụp.'); return; }
+    const result = await createReview({ bookingId: booking.id, userId, customerName: booking.customer_name, serviceTitle: booking.service_title, rating, comment, photos });
     setSubmitting(false);
     if (result.success) {
       setMessage('Cảm ơn bạn đã chia sẻ trải nghiệm! Đánh giá đã hiển thị trên trang chủ. 💙');
@@ -47,8 +52,17 @@ export default function ReviewForm({ booking, userId, onClose, onSuccess }: { bo
     } else setMessage(result.message || 'Không thể gửi đánh giá.');
   };
 
+  const choosePhotos = (files: FileList | null) => {
+    if (!files) return;
+    const selected = Array.from(files).filter((file) => file.type.startsWith('image/')).slice(0, 5);
+    if (selected.length !== files.length || files.length > 5) { setMessage('Bạn chỉ có thể tải tối đa 5 ảnh định dạng hình ảnh.'); }
+    previews.forEach((url) => URL.revokeObjectURL(url));
+    setPhotos(selected);
+    setPreviews(selected.map((file) => URL.createObjectURL(file)));
+  };
+
   return <div className="review-form-backdrop fixed inset-0 z-[230] flex items-end justify-center bg-slate-950/60 p-4 backdrop-blur-md sm:items-center">
-    <div className="review-form-dialog auth-dialog w-full max-w-lg rounded-3xl border border-sky-200 bg-elevated p-6 shadow-2xl">
+    <div className="review-form-dialog auth-dialog max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-3xl border border-sky-200 bg-elevated p-6 shadow-2xl">
       <div className="flex items-start justify-between gap-4">
         <div><span className="section-kicker">Buổi chụp đã hoàn thành</span><h2 className="mt-2 text-xl font-black text-slate-900">Đánh giá trải nghiệm chụp</h2><p className="mt-1 text-xs text-slate-500">{booking.service_title}</p></div>
         <button type="button" onClick={onClose} aria-label="Đóng đánh giá" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100"><X className="h-5 w-5" /></button>
@@ -59,6 +73,7 @@ export default function ReviewForm({ booking, userId, onClose, onSuccess }: { bo
         <p className="mt-2 min-h-5 text-xs font-semibold text-sky-700">{LABELS[hover || rating]}</p>
       </fieldset>
       <label className="mt-5 block text-sm font-bold text-slate-800">Bạn cảm thấy buổi chụp thế nào?<textarea value={comment} maxLength={800} onChange={(event) => setComment(event.target.value)} placeholder="Chia sẻ trải nghiệm của bạn..." className="booking-input mt-2 min-h-32 resize-none font-normal" /><span className="mt-1 block text-right text-[10px] font-normal text-slate-400">{comment.length}/800</span></label>
+      <div className="mt-5"><label className="block text-sm font-bold text-slate-800">Ảnh hôm đó đã chụp <span className="font-normal text-slate-500">(bắt buộc 1–5 ảnh)</span><span className="review-upload-box mt-2"><ImagePlus className="h-5 w-5" /><span>{photos.length ? `Đã chọn ${photos.length}/5 ảnh` : 'Chọn ảnh để chia sẻ'}</span><input type="file" accept="image/*" multiple onChange={(event) => choosePhotos(event.target.files)} /></span></label>{previews.length > 0 && <div className="review-upload-previews">{previews.map((src, index) => <div key={src}><img src={src} alt={`Ảnh đã chọn ${index + 1}`} /><button type="button" onClick={() => { const next = photos.filter((_, item) => item !== index); setPhotos(next); URL.revokeObjectURL(src); setPreviews(next.map((file) => URL.createObjectURL(file))); }} aria-label={`Xóa ảnh ${index + 1}`}><X /></button></div>)}</div>}</div>
       <p className="mt-4 text-xs text-slate-600">Đánh giá sẽ được đăng công khai ngay trên trang chủ sau khi gửi.</p>
       {message && <p className={`mt-4 text-sm font-semibold ${message.startsWith('Cảm ơn') ? 'text-emerald-600' : 'text-rose-600'}`}>{message}</p>}
       <button onClick={submit} disabled={submitting} className="sky-button mt-6 min-h-12 w-full rounded-xl py-3 disabled:opacity-60">{submitting ? 'Đang gửi...' : 'Gửi đánh giá'}</button>

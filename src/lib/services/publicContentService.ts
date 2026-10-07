@@ -251,13 +251,21 @@ function mapReview(row: Record<string, any>): ExperienceReview {
 
 async function queryReviews(): Promise<ExperienceReview[]> {
   try {
-    const { data, error } = await publicClient()
+    const client = publicClient();
+    const { data, error } = await client
       .from('reviews')
       .select('id,booking_id,user_id,rating,comment,is_public,is_featured,created_at,updated_at,bookings(customer_name,service_name_snapshot),portfolio_albums(slug)')
       .eq('is_public', true)
       .order('is_featured', { ascending: false })
       .order('created_at', { ascending: false });
-    if (!error && data) return data.map((row) => mapReview(row));
+    if (!error && data) {
+      const media = new Map<string, string[]>();
+      try {
+        const { data: images } = await client.from('review_images').select('review_id,image_url,display_order').in('review_id', data.map((row) => row.id)).order('display_order');
+        (images ?? []).forEach((image) => media.set(image.review_id, [...(media.get(image.review_id) ?? []), image.image_url]));
+      } catch { /* Optional review media migration may not exist yet. */ }
+      return data.map((row) => ({ ...mapReview(row), photos: media.get(row.id) ?? [], likes: 0 }));
+    }
   } catch {
     // Fall through to local fixtures in development.
   }
