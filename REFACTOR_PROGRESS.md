@@ -77,9 +77,21 @@ Estimated image/payload change:
 
 Verification: `npm run lint` pass, `npx tsc --noEmit` pass, `npm run build` pass. No real migration, deploy, or push was performed. Committed locally as `perf: giai đoạn 3 - tối ưu ảnh`.
 
+## Giai đoạn 4 — Upload không để rác
+
+Status: **hoàn tất**.
+
+Implemented:
+
+- Review images are prepared/uploaded with a maximum concurrency of 3.
+- Added `create_review_with_images(...)` in `202610070008_phase4_atomic_review_uploads.sql`; after Storage upload, the review row and all `review_images` rows are committed in one database transaction.
+- Any failed upload or RPC/row transaction removes every object successfully uploaded for that review and returns the failure to the user; the old behavior of silently swallowing media errors is removed.
+- Admin album preview processing now also uses concurrency 3 while preserving the selected-file order.
+
+Verification: `npm run lint` pass, `npx tsc --noEmit` pass, `npm run build` pass. No real migration, deploy, or push was performed. Committed locally as `perf: giai đoạn 4 - upload không để rác`.
+
 ## Các giai đoạn còn lại
 
-- Giai đoạn 4: upload không để rác.
 - Giai đoạn 5: giảm tải frontend.
 - Giai đoạn 6: dọn code thừa.
 - Giai đoạn 7: tách file lớn, không đổi hành vi.

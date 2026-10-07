@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import { MOCK_REVIEWS } from '@/lib/data/mockData';
 import type { ExperienceReview, ReviewSummary } from '@/types';
-import { prepareImage, uploadPreparedImage } from '@/lib/services/imageUploadService';
+import { prepareImage, removeStorageImages, uploadPreparedImage, type UploadedImage } from '@/lib/services/imageUploadService';
 
 const STORAGE_KEY = 'photo_reviews_v1';
 const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -133,24 +133,36 @@ export async function createReview(input: { bookingId: string; userId?: string; 
   if (comment.length < 10 || comment.length > 800) return { success: false, message: 'Nội dung đánh giá cần từ 10 đến 800 ký tự.' };
   if ((input.photos?.length ?? 0) < 1 || (input.photos?.length ?? 0) > 5) return { success: false, message: 'Vui lòng chọn từ 1 đến 5 ảnh cho đánh giá.' };
   try {
-    const { data, error } = await createClient().rpc('review_completed_booking', { target_booking: input.bookingId, target_rating: input.rating, target_comment: comment });
-    if (!error && data) {
+    const uploaded = await uploadReviewPhotos(input.photos ?? [], input.userId);
+    const { data, error } = await createClient().rpc('create_review_with_images', {
+      target_booking: input.bookingId,
+      target_rating: input.rating,
+      target_comment: comment,
+      target_images: uploaded.map((image, index) => ({
+        image_url: image.url,
+        storage_path: image.path,
+        thumb_url: image.thumbnailUrl ?? '',
+        thumb_path: image.thumbnailPath ?? '',
+        display_order: index,
+      })),
+    });
+    if (error) {
+      await cleanupUploadedReviewPhotos(uploaded, error.message);
+      throw new Error(error.message);
+    }
+    if (data) {
       const row = Array.isArray(data) ? data[0] : data;
       const reviewId = typeof row === 'object' && row && 'id' in row ? String((row as { id: string }).id) : undefined;
-      if (reviewId && input.photos?.length) await uploadReviewPhotos(reviewId, input.photos, input.userId);
       if (typeof window !== 'undefined') window.dispatchEvent(new Event('review-created'));
-      return { success: true, review: reviewId ? { id: reviewId, booking_id: input.bookingId, user_id: input.userId, customer_name: input.customerName, rating: input.rating, comment, service_title: input.serviceTitle, photos: [], likes: 0, is_public: true, is_featured: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } : undefined };
+      return { success: true, review: reviewId ? { id: reviewId, booking_id: input.bookingId, user_id: input.userId, customer_name: input.customerName, rating: input.rating, comment, service_title: input.serviceTitle, photos: uploaded.map((image) => image.thumbnailUrl ?? image.url), photo_urls: uploaded.map((image) => image.url), likes: 0, is_public: true, is_featured: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } : undefined };
     }
-    if (error?.code === '23505') return { success:false, message:'Booking này đã được đánh giá.' };
-    if (error && /not reviewable|completed|booking/i.test(error.message)) return { success:false, message:'Chỉ booking đã hoàn thành của bạn mới có thể đánh giá.' };
-  } catch { /* Development fallback below. */ }
-  if (!isDevelopment) return { success: false, message: 'Không thể lưu đánh giá vào database.' };
-  const permission = await canReviewBooking(input.bookingId);
-  if (!permission.allowed) return { success: false, message: permission.reason };
-  const now = new Date().toISOString(); const review: ExperienceReview = { id: `rv-${Date.now()}`, booking_id: input.bookingId, user_id: input.userId, customer_name: input.customerName, rating: input.rating, comment, service_title: input.serviceTitle, photos: [], likes: 0, is_public: true, is_featured: false, created_at: now, updated_at: now };
-  save([review, ...localReviews()]);
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event('review-created'));
-  return { success: true, review };
+    await cleanupUploadedReviewPhotos(uploaded, 'Database không trả về đánh giá mới');
+    throw new Error('Database không trả về đánh giá mới');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Không thể lưu đánh giá vào database.';
+    if (/not reviewable|completed|booking/i.test(message)) return { success: false, message: 'Chỉ booking đã hoàn thành của bạn mới có thể đánh giá.' };
+    return { success: false, message };
+  }
 }
 
 export async function getUserReviewLikes(reviewIds: string[]): Promise<string[]> {
@@ -177,21 +189,38 @@ export async function toggleReviewLike(reviewId: string): Promise<{ success: boo
   }
 }
 
-async function uploadReviewPhotos(reviewId: string, files: File[], userId?: string) {
-  if (!userId || !files.length) return;
-  const supabase = createClient();
-  const uploaded: Array<{ url: string; path: string }> = [];
-  try {
-    for (const [index, file] of files.slice(0, 5).entries()) {
-      const prepared = await prepareImage(file, { maxDimension: 1800, thumbnailDimension: 640, quality: 0.84 });
-      const image = await uploadPreparedImage(prepared, file.name, { bucket: 'review-media', folder: userId });
-      uploaded.push({ url: image.url, path: image.path });
-      if (image.thumbnailPath) uploaded.push({ url: image.thumbnailUrl ?? image.url, path: image.thumbnailPath });
-      const { error } = await supabase.from('review_images').insert({ review_id: reviewId, user_id: userId, image_url: image.url, storage_path: image.path, thumb_url: image.thumbnailUrl, thumb_path: image.thumbnailPath, display_order: index });
-      if (error) throw error;
+async function uploadReviewPhotos(files: File[], userId?: string): Promise<UploadedImage[]> {
+  if (!userId || !files.length) throw new Error('Vui lòng đăng nhập và chọn ít nhất một ảnh.');
+  const selected = files.slice(0, 5);
+  const uploaded: Array<UploadedImage | undefined> = [];
+  const errors: unknown[] = [];
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < selected.length) {
+      const index = cursor++;
+      try {
+        const prepared = await prepareImage(selected[index], { maxDimension: 1800, thumbnailDimension: 640, quality: 0.84 });
+        uploaded[index] = await uploadPreparedImage(prepared, selected[index].name, { bucket: 'review-media', folder: userId });
+      } catch (error) {
+        errors.push(error);
+      }
     }
-  } catch {
-    // The review itself remains valid when the optional media migration is not deployed yet.
+  };
+  await Promise.all(Array.from({ length: Math.min(3, selected.length) }, () => worker()));
+  const completed = uploaded.filter((image): image is UploadedImage => Boolean(image));
+  if (errors.length || completed.length !== selected.length) {
+    await cleanupUploadedReviewPhotos(completed, errors[0] instanceof Error ? errors[0].message : 'Không thể tải đủ ảnh đánh giá.');
+    throw new Error(errors[0] instanceof Error ? errors[0].message : 'Không thể tải đủ ảnh đánh giá.');
+  }
+  return completed;
+}
+
+async function cleanupUploadedReviewPhotos(images: UploadedImage[], reason: string) {
+  try {
+    await removeStorageImages('review-media', images.flatMap((image) => [image.path, image.thumbnailPath]));
+  } catch (cleanupError) {
+    const suffix = cleanupError instanceof Error ? ` Dọn Storage cũng lỗi: ${cleanupError.message}` : '';
+    throw new Error(`${reason}.${suffix}`);
   }
 }
 

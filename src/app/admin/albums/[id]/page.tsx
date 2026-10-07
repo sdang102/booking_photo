@@ -56,13 +56,14 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
 
   const choose=async(files?:FileList|null)=>{
     const selected=Array.from(files??[]);if(!selected.length)return;
-    setBusy(true);setMsg('');const added:PendingImage[]=[];const failed:string[]=[];
-    for(const file of selected){
-      try{const prepared=await prepareImage(file,{thumbnailDimension:640});const previewUrl=URL.createObjectURL(prepared.thumbnail?.blob??prepared.full.blob);added.push({key:`${file.name}-${file.lastModified}-${Math.random()}`,name:file.name.replace(/\.[^.]+$/,''),previewUrl,prepared})}
+    setBusy(true);setMsg('');const added:Array<PendingImage|undefined>=[];const failed:string[]=[];
+    await runWithConcurrency(selected,3,async(file,index)=>{
+      try{const prepared=await prepareImage(file,{thumbnailDimension:640});const previewUrl=URL.createObjectURL(prepared.thumbnail?.blob??prepared.full.blob);added[index]={key:`${file.name}-${file.lastModified}-${Math.random()}`,name:file.name.replace(/\.[^.]+$/,''),previewUrl,prepared}}
       catch(error){failed.push(`${file.name}: ${error instanceof Error?error.message:'Không thể xử lý ảnh.'}`)}
-    }
-    setPending(current=>[...current,...added]);setBusy(false);
-    setMsg(failed.length?`Đã chuẩn bị ${added.length} ảnh. Không xử lý được: ${failed.join('; ')}`:`Đã chuẩn bị ${added.length} ảnh. Bấm “Thêm vào album” để lưu.`);
+    });
+    const preparedImages=added.filter((item):item is PendingImage=>Boolean(item));
+    setPending(current=>[...current,...preparedImages]);setBusy(false);
+    setMsg(failed.length?`Đã chuẩn bị ${preparedImages.length} ảnh. Không xử lý được: ${failed.join('; ')}`:`Đã chuẩn bị ${preparedImages.length} ảnh. Bấm “Thêm vào album” để lưu.`);
   };
 
   const add=async(event:FormEvent)=>{
