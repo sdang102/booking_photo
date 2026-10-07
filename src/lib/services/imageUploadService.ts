@@ -141,6 +141,9 @@ function storageErrorMessage(error: unknown, bucket: string) {
   const value = error && typeof error === 'object' ? error as { message?: string; code?: string; statusCode?: string | number } : {};
   if (value.code === 'NoSuchBucket' || Number(value.statusCode) === 404) return `Kho ảnh “${bucket}” chưa được cấu hình trên Supabase Storage.`;
   if (Number(value.statusCode) === 413 || /too large|maximum/i.test(value.message ?? '')) return 'Ảnh sau khi nén vẫn vượt quá giới hạn của kho lưu trữ.';
-  if (Number(value.statusCode) === 403 || /policy|permission|not authorized/i.test(value.message ?? '')) return 'Tài khoản không có quyền upload ảnh. Vui lòng đăng nhập lại bằng tài khoản admin.';
+  if (Number(value.statusCode) === 403 || /policy|permission|not authorized/i.test(value.message ?? '')) {
+    if (bucket === 'avatars' || bucket === 'review-media') return 'Không thể tải ảnh lên lúc này. Hãy đăng nhập lại rồi thử lại.';
+    return 'Tài khoản không có quyền upload ảnh ở khu vực quản trị này.';
+  }
   return value.message ? `Upload ảnh thất bại: ${value.message}` : 'Upload ảnh lên Supabase Storage thất bại. Vui lòng thử lại.';
 }

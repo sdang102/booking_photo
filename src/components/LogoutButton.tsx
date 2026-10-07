@@ -27,6 +27,7 @@ export default function LogoutButton({className='',label,onClick}:{className?:st
   const handleLogout=async()=>{
     setBusy(true);
     await logout();
+    onClick?.();
     router.replace('/');
     router.refresh();
   };
@@ -60,7 +61,7 @@ export default function LogoutButton({className='',label,onClick}:{className?:st
   ):null;
 
   return <>
-    <button type="button" onClick={()=>{onClick?.();setOpen(true);}} title="Đăng xuất" aria-label="Đăng xuất" className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-sky-200 bg-elevated px-3 text-slate-600 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 ${className}`}><LogOut className="h-4 w-4"/>{label && <span>{label}</span>}</button>
+    <button type="button" onClick={()=>setOpen(true)} title="Đăng xuất" aria-label="Đăng xuất" className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-sky-200 bg-elevated px-3 text-slate-600 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 ${className}`}><LogOut className="h-4 w-4"/>{label && <span>{label}</span>}</button>
     {modal}
   </>;
 }
