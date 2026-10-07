@@ -265,14 +265,14 @@ async function queryReviews(): Promise<ExperienceReview[]> {
       const avatars = new Map<string, string>();
       const likes = new Map<string, number>();
       try {
-        const [{ data: images }, { data: authors }, { data: likeRows }] = await Promise.all([
+        const [{ data: images }, { data: authors }, { data: likeCounts }] = await Promise.all([
           client.from('review_images').select('review_id,image_url,display_order').in('review_id', reviewIds).order('display_order'),
           client.rpc('get_public_review_authors', { target_ids: userIds }),
-          client.from('review_likes').select('review_id').in('review_id', reviewIds),
+          client.rpc('get_review_like_counts', { target_review_ids: reviewIds }),
         ]);
         (images ?? []).forEach((image) => media.set(image.review_id, [...(media.get(image.review_id) ?? []), image.image_url]));
         (authors ?? []).forEach((author: { id: string; avatar_url: string | null }) => { if (author.avatar_url) avatars.set(author.id, author.avatar_url); });
-        (likeRows ?? []).forEach((like) => likes.set(like.review_id, (likes.get(like.review_id) ?? 0) + 1));
+        (likeCounts ?? []).forEach((like: { review_id: string; like_count: number | string }) => { likes.set(like.review_id, Number(like.like_count ?? 0)); });
       } catch { /* Optional review media/avatar/like migrations may not exist yet. */ }
       return data.map((row) => ({ ...mapReview(row), avatar_url: row.user_id ? avatars.get(row.user_id) : undefined, photos: media.get(row.id) ?? [], likes: likes.get(row.id) ?? 0 }));
     }

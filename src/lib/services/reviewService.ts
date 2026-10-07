@@ -41,10 +41,12 @@ async function reviewAuthors(userIds: string[]) {
 async function reviewLikeCounts(reviewIds: string[]) {
   if (!reviewIds.length) return new Map<string, number>();
   try {
-    const { data, error } = await createClient().from('review_likes').select('review_id').in('review_id', reviewIds);
+    const { data, error } = await createClient().rpc('get_review_like_counts', { target_review_ids: reviewIds });
     if (error) return new Map<string, number>();
     const result = new Map<string, number>();
-    (data ?? []).forEach((row) => result.set(row.review_id, (result.get(row.review_id) ?? 0) + 1));
+    (data ?? []).forEach((row: { review_id: string; like_count: number | string }) => {
+      result.set(row.review_id, Number(row.like_count ?? 0));
+    });
     return result;
   } catch { return new Map<string, number>(); }
 }
