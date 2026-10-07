@@ -21,7 +21,7 @@ export default function PublicMotionRoot({ settings, children }: { settings?: Ho
       '.fin-services-plans article', '.fin-extras article',
       '.fin-about-hero__copy > *', '.fin-about-hero figure',
       '.fin-about-statement > .fin-shell > *', '.fin-about-profile figure', '.fin-about-profile > .fin-shell > div',
-      '.review-archive__hero > *', '.review-archive__list article', '.fin-review-hero__copy > *',
+      '.fin-review-hero__copy > *',
       '.fin-review-score', '.fin-review-distribution', '.fin-review-featured', '.fin-review-library__head > *',
       '.fin-review-grid article', '.fin-review-cta > .fin-shell', '.booking-page-embed',
     ].join(',')));

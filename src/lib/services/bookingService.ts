@@ -3,6 +3,7 @@ import { MOCK_SERVICES } from '@/lib/data/mockData';
 import { Service, BookingFormData, BookingPhotoRecord, PublicScheduleItem, BookingStatus, AvailabilityBlock } from '@/types';
 import { normalizeVietnameseMobile, VIETNAMESE_MOBILE_ERROR } from '@/lib/phone';
 import { isRangeAvailable, rangesOverlap } from '@/lib/bookingAvailability';
+import { devWarn } from '@/lib/devLogger';
 
 const TABLE_NAME = 'bookings';
 const BOOKING_SELECT = 'id,created_at,customer_name,customer_phone,customer_email,service_id,service_name_snapshot,shoot_date,start_time,end_time,shoot_address,customer_note,photographer_note,status,payment_status,total_price,deposit_amount,user_id,photographer_id';
@@ -121,7 +122,7 @@ export async function getServices(): Promise<Service[]> {
       }) as Service[];
     }
   } catch (err) {
-    console.warn('Using mock services due to Supabase connection:', err);
+    devWarn('Using mock services due to Supabase connection:', err);
   }
   return isDevelopment ? MOCK_SERVICES : [];
 }
@@ -179,7 +180,7 @@ export async function createBookingPhoto(
       };
     }
   } catch (err) {
-    console.warn('Error inserting booking into Supabase:', err);
+    devWarn('Error inserting booking into Supabase:', err);
     return { success:false, message:'Không thể kết nối database để giữ chỗ. Vui lòng kiểm tra mạng và thử lại.' };
   }
   return { success:false, message:'Không thể lưu booking vào database. Vui lòng thử lại.' };
@@ -210,7 +211,7 @@ export async function getAllBookings({ fromDate, statuses, limit = 200, offset =
       return data.map(mapBookingRow);
     }
   } catch (err) {
-    console.warn('Error fetching all bookings from Supabase:', err);
+    devWarn('Error fetching all bookings from Supabase:', err);
   }
   return isDevelopment ? getLocalBookings() : [];
 }
@@ -287,7 +288,7 @@ export async function getUserBookings(
       return data.map(mapBookingRow);
     }
   } catch (err) {
-    console.warn('Error fetching user bookings from Supabase:', err);
+    devWarn('Error fetching user bookings from Supabase:', err);
   }
 
   // Filter local
@@ -331,7 +332,7 @@ export async function updateBookingStatus(
       return true;
     }
   } catch (err) {
-    console.warn('Error updating status in Supabase:', err);
+    devWarn('Error updating status in Supabase:', err);
   }
 
   if (isDevelopment) { updateLocalStatus(bookingId, newStatus); return true; }

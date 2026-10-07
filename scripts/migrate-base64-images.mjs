@@ -22,6 +22,7 @@ const manifestArg = process.argv.find((value) => value.startsWith('--manifest=')
 const outputArg = process.argv.find((value) => value.startsWith('--output='))?.split('=')[1];
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const devWarn = (...values) => { if (process.env.NODE_ENV !== 'production') console.warn(...values); };
 
 if (!supabaseUrl || !serviceRoleKey) fail('Cần NEXT_PUBLIC_SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY. Không dùng anon key cho công cụ này.');
 if (args.has('--apply') && !manifestArg) fail('Bước --apply bắt buộc có --manifest=đường-dẫn.');
@@ -59,7 +60,7 @@ for (const item of manifest) {
   if (error) fail(`${item.table}.${item.column}: ${error.message}`);
   const originalValue = data?.[item.column];
   if (!isDataUrl(originalValue)) {
-    console.warn(`Bỏ qua ${item.table}.${item.column} ${item.id}: dữ liệu hiện tại không còn là Base64.`);
+    devWarn(`Bỏ qua ${item.table}.${item.column} ${item.id}: dữ liệu hiện tại không còn là Base64.`);
     continue;
   }
   backup.push({ table: item.table, id: item.id, column: item.column, originalValue });
