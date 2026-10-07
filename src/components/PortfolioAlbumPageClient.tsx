@@ -23,8 +23,16 @@ export default function PortfolioAlbumPage({ album }: { album: PortfolioAlbum })
     if(!lightbox)return;
     const close=(event:KeyboardEvent)=>{if(event.key==='Escape')setLightbox(null)};
     const resize=()=>setViewport({width:window.innerWidth,height:window.innerHeight});
-    resize();document.body.style.overflow='hidden';window.addEventListener('keydown',close);window.addEventListener('resize',resize);
-    return()=>{document.body.style.overflow='';window.removeEventListener('keydown',close);window.removeEventListener('resize',resize)};
+    const body=document.body;
+    const html=document.documentElement;
+    const previous={bodyOverflow:body.style.overflow,bodyTouchAction:body.style.touchAction,bodyOverscroll:body.style.overscrollBehavior,htmlOverflow:html.style.overflow};
+    resize();
+    body.style.overflow='hidden';
+    body.style.touchAction='none';
+    body.style.overscrollBehavior='none';
+    html.style.overflow='hidden';
+    window.addEventListener('keydown',close);window.addEventListener('resize',resize);
+    return()=>{body.style.overflow=previous.bodyOverflow;body.style.touchAction=previous.bodyTouchAction;body.style.overscrollBehavior=previous.bodyOverscroll;html.style.overflow=previous.htmlOverflow;window.removeEventListener('keydown',close);window.removeEventListener('resize',resize)};
   },[lightbox]);
   const openLightbox=(image:PortfolioImage)=>{pointers.current.clear();pinch.current=null;setDrag(null);setNaturalSize(null);setZoom(1);setPan({x:0,y:0});setLightbox(image)};
   const changeZoom=(next:number)=>{const value=Math.min(4,Math.max(1,next));setZoom(value);if(value===1)setPan({x:0,y:0})};

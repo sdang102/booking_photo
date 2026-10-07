@@ -115,6 +115,28 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
   }, [isOpen, services]);
 
   useEffect(() => {
+    if (!isOpen || variant === 'page') return;
+    const body = document.body;
+    const html = document.documentElement;
+    const previous = {
+      bodyOverflow: body.style.overflow,
+      bodyTouchAction: body.style.touchAction,
+      bodyOverscroll: body.style.overscrollBehavior,
+      htmlOverflow: html.style.overflow,
+    };
+    body.style.overflow = 'hidden';
+    body.style.touchAction = 'none';
+    body.style.overscrollBehavior = 'none';
+    html.style.overflow = 'hidden';
+    return () => {
+      body.style.overflow = previous.bodyOverflow;
+      body.style.touchAction = previous.bodyTouchAction;
+      body.style.overscrollBehavior = previous.bodyOverscroll;
+      html.style.overflow = previous.htmlOverflow;
+    };
+  }, [isOpen, variant]);
+
+  useEffect(() => {
     if (!servicePickerOpen) return;
     const closePicker = (event: PointerEvent) => {
       if (!servicePickerRef.current?.contains(event.target as Node)) setServicePickerOpen(false);
@@ -214,7 +236,7 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
             </div>
 
             <div className="grid min-h-0 flex-1 lg:grid-cols-[1fr_18rem]">
-              <div className="booking-content overflow-y-auto p-4 sm:p-7">
+              <div className={`booking-content ${variant === 'page' ? 'booking-content--page' : 'overflow-y-auto'} p-4 sm:p-7`}>
                 {step === 1 && <div className="booking-schedule-step">
                   <header className="booking-schedule-heading"><span>Phần 02</span><i>/</i><h3>Ngày Thực Hiện &amp; Khung Giờ Ánh Sáng</h3></header>
                   <div className="booking-schedule-grid">

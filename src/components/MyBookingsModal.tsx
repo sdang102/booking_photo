@@ -36,6 +36,27 @@ export default function MyBookingsModal({
     if (!isOpen) return;
     getReviews().then((items) => { setReviews(items); setReviewsLoaded(true); });
   }, [isOpen]);
+  useEffect(() => {
+    if (!isOpen) return;
+    const body = document.body;
+    const html = document.documentElement;
+    const previous = {
+      bodyOverflow: body.style.overflow,
+      bodyTouchAction: body.style.touchAction,
+      bodyOverscroll: body.style.overscrollBehavior,
+      htmlOverflow: html.style.overflow,
+    };
+    body.style.overflow = 'hidden';
+    body.style.touchAction = 'none';
+    body.style.overscrollBehavior = 'none';
+    html.style.overflow = 'hidden';
+    return () => {
+      body.style.overflow = previous.bodyOverflow;
+      body.style.touchAction = previous.bodyTouchAction;
+      body.style.overscrollBehavior = previous.bodyOverscroll;
+      html.style.overflow = previous.htmlOverflow;
+    };
+  }, [isOpen]);
   if (!isOpen) return null;
 
   // Filter bookings for the active user if logged in
