@@ -104,7 +104,7 @@ export default function Navbar({
     <>
       <header className={`site-nav ${scrolled ? 'site-nav--scrolled' : ''} ${menuOpen ? 'site-nav--open' : ''} ${!navVisible && !menuOpen && !accountOpen ? 'site-nav--hidden' : ''}`}>
         <div className="site-nav__inner">
-          <div className="site-nav__brand-group"><BrandLogo />{user && <Link href="/profile" className="site-nav__avatar" aria-label="Mở hồ sơ cá nhân"><span>{user.avatar_url ? <img src={user.avatar_url} alt="" /> : <User />}</span></Link>}</div>
+          <div className="site-nav__brand-group"><BrandLogo /></div>
           <nav className="site-nav__desktop" aria-label="Điều hướng chính">
             {links.map(({ label, href, icon: Icon }) => {
               const active = isActive(href);
@@ -118,13 +118,12 @@ export default function Navbar({
             {user ? (
               <div className="site-nav__user">
                 <button type="button" onClick={() => setAccountOpen((value) => !value)} className="nav-icon nav-icon--user" title="Quản lý tài khoản" aria-expanded={accountOpen}>
-                  <User />
+                  <span className="site-nav__user-avatar">{user.avatar_url ? <img src={user.avatar_url} alt="" /> : <User />}</span>
                 </button>
               </div>
             ) : (
               <button type="button" onClick={onOpenAuth} className="nav-icon nav-icon--login" aria-label="Đăng nhập" title="Đăng nhập"><User /></button>
             )}
-            {user && <button type="button" onClick={() => setAccountOpen((value) => !value)} className="nav-icon nav-icon--avatar-mobile" title="Quản lý tài khoản" aria-label="Quản lý tài khoản" aria-expanded={accountOpen}><span>{user.avatar_url ? <img src={user.avatar_url} alt="" /> : <User />}</span></button>}
             <button type="button" onClick={toggleMenu} className="nav-icon nav-icon--menu" aria-expanded={menuOpen} aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}>
               {menuOpen ? <X /> : <Menu />}
             </button>
@@ -214,17 +213,6 @@ export default function Navbar({
           </span>
           <span>Lịch chụp</span>
         </button>
-        {user ? (
-          <Link href="/profile" className={isActive('/profile') ? 'is-active' : ''}>
-            <span className="workspace-nav__icon"><User /></span>
-            <span>Tôi</span>
-          </Link>
-        ) : (
-          <button type="button" onClick={onOpenAuth}>
-            <span className="workspace-nav__icon"><User /></span>
-            <span>Tôi</span>
-          </button>
-        )}
       </nav>
     </>
   );

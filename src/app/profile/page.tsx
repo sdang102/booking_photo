@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type PointerEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { CalendarCheck2, KeyRound, Mail, Pencil, Phone, Save, UserRound } from 'lucide-react';
 import RoleGuard from '@/components/RoleGuard';
@@ -21,6 +21,8 @@ export default function Profile() {
   const [section, setSection] = useState<'personal' | 'security' | 'bookings'>('personal');
   const [crop, setCrop] = useState<{ file: File; url: string } | null>(null);
   const [cropZoom, setCropZoom] = useState(1);
+  const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
+  const cropDrag = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -45,7 +47,17 @@ export default function Profile() {
     setAvatarMessage(null);
     setCrop({ file, url: URL.createObjectURL(file) });
     setCropZoom(1);
+    setCropOffset({ x: 0, y: 0 });
   };
+
+  useEffect(() => {
+    if (!crop) return;
+    const previous = { bodyOverflow: document.body.style.overflow, bodyTouchAction: document.body.style.touchAction, htmlOverflow: document.documentElement.style.overflow };
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    document.documentElement.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous.bodyOverflow; document.body.style.touchAction = previous.bodyTouchAction; document.documentElement.style.overflow = previous.htmlOverflow; };
+  }, [crop]);
 
   const cancelCrop = () => {
     if (crop) URL.revokeObjectURL(crop.url);
@@ -63,8 +75,8 @@ export default function Profile() {
         element.src = crop.url;
       });
       const cropSize = Math.min(image.naturalWidth, image.naturalHeight) / cropZoom;
-      const sourceX = (image.naturalWidth - cropSize) / 2;
-      const sourceY = (image.naturalHeight - cropSize) / 2;
+      const sourceX = Math.max(0, Math.min(image.naturalWidth - cropSize, (image.naturalWidth - cropSize) / 2 - cropOffset.x * (cropSize / 320)));
+      const sourceY = Math.max(0, Math.min(image.naturalHeight - cropSize, (image.naturalHeight - cropSize) / 2 - cropOffset.y * (cropSize / 320)));
       const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
       const context = canvas.getContext('2d');
       if (!context) throw new Error('Trình duyệt không hỗ trợ cắt ảnh.');
@@ -77,6 +89,17 @@ export default function Profile() {
       setAvatarMessage(error instanceof Error ? error.message : 'Không thể cắt ảnh.');
     } finally { setAvatarBusy(false); }
   };
+
+  const startCropDrag = (event: PointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    cropDrag.current = { startX: event.clientX, startY: event.clientY, originX: cropOffset.x, originY: cropOffset.y };
+  };
+  const moveCropDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = cropDrag.current;
+    if (!drag) return;
+    setCropOffset({ x: drag.originX + event.clientX - drag.startX, y: drag.originY + event.clientY - drag.startY });
+  };
+  const stopCropDrag = () => { cropDrag.current = null; };
 
   const savePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -154,7 +177,7 @@ export default function Profile() {
           </div>
         </div>
       </section>
-      {crop && <div className="avatar-crop-backdrop" role="presentation"><section className="avatar-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-crop-title"><h2 id="avatar-crop-title">Cắt ảnh đại diện</h2><div className="avatar-crop-preview"><img src={crop.url} alt="Xem trước ảnh đại diện" style={{ transform: `scale(${cropZoom})` }} /></div><label className="avatar-crop-zoom">Thu phóng <input type="range" min="1" max="2.5" step=".05" value={cropZoom} onChange={(event) => setCropZoom(Number(event.target.value))} /></label><div className="avatar-crop-actions"><button type="button" onClick={cancelCrop}>Hủy</button><button type="button" onClick={() => { void applyAvatarCrop(); }} disabled={avatarBusy}>{avatarBusy ? 'Đang lưu...' : 'Dùng ảnh này'}</button></div></section></div>}
+      {crop && <div className="avatar-crop-backdrop" role="presentation"><section className="avatar-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-crop-title"><h2 id="avatar-crop-title">Cắt ảnh đại diện</h2><div className="avatar-crop-preview" onPointerDown={startCropDrag} onPointerMove={moveCropDrag} onPointerUp={stopCropDrag} onPointerCancel={stopCropDrag}><img src={crop.url} alt="Xem trước ảnh đại diện" style={{ transform: `translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})` }} /></div><p className="avatar-crop-hint">Kéo ảnh để căn trái, phải, lên hoặc xuống.</p><label className="avatar-crop-zoom">Thu phóng <input type="range" min="1" max="2.5" step=".05" value={cropZoom} onChange={(event) => setCropZoom(Number(event.target.value))} /></label><div className="avatar-crop-actions"><button type="button" onClick={cancelCrop}>Hủy</button><button type="button" onClick={() => { void applyAvatarCrop(); }} disabled={avatarBusy}>{avatarBusy ? 'Đang lưu...' : 'Dùng ảnh này'}</button></div></section></div>}
     </main>
   </RoleGuard>;
 }

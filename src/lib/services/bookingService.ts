@@ -284,8 +284,14 @@ export async function getUserBookings(
     if (activeOnly) query = query.in('status', ACTIVE_BOOKING_STATUSES);
 
     const { data, error } = await query;
-    if (!error && data) {
-      return data.map(mapBookingRow);
+    if (!error && data?.length) return data.map(mapBookingRow);
+    // Some older bookings were created as guest records and only carry the
+    // customer's email. Let an authenticated customer see those records too.
+    if (!error && userId && email) {
+      let emailQuery = supabase.from(TABLE_NAME).select(BOOKING_SELECT).eq('customer_email', email).order('created_at', { ascending: false }).limit(limit);
+      if (activeOnly) emailQuery = emailQuery.in('status', ACTIVE_BOOKING_STATUSES);
+      const { data: emailData, error: emailError } = await emailQuery;
+      if (!emailError && emailData) return emailData.map(mapBookingRow);
     }
   } catch (err) {
     devWarn('Error fetching user bookings from Supabase:', err);
