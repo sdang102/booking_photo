@@ -27,6 +27,28 @@ async function reviewMedia(reviewIds: string[]) {
   } catch { return new Map<string, string[]>(); }
 }
 
+async function reviewAuthors(userIds: string[]) {
+  if (!userIds.length) return new Map<string, string>();
+  try {
+    const { data, error } = await createClient().rpc('get_public_review_authors', { target_ids: userIds });
+    if (error) return new Map<string, string>();
+    const result = new Map<string, string>();
+    (data ?? []).forEach((row: { id: string; avatar_url: string | null }) => { if (row.id && row.avatar_url) result.set(row.id, row.avatar_url); });
+    return result;
+  } catch { return new Map<string, string>(); }
+}
+
+async function reviewLikeCounts(reviewIds: string[]) {
+  if (!reviewIds.length) return new Map<string, number>();
+  try {
+    const { data, error } = await createClient().from('review_likes').select('review_id').in('review_id', reviewIds);
+    if (error) return new Map<string, number>();
+    const result = new Map<string, number>();
+    (data ?? []).forEach((row) => result.set(row.review_id, (result.get(row.review_id) ?? 0) + 1));
+    return result;
+  } catch { return new Map<string, number>(); }
+}
+
 export async function getReviews(options: { publicOnly?: boolean; featuredFirst?: boolean; limit?: number } = {}): Promise<ExperienceReview[]> {
   try {
     const supabase = createClient();
@@ -38,14 +60,20 @@ export async function getReviews(options: { publicOnly?: boolean; featuredFirst?
     if (options.limit) query = query.limit(options.limit);
     const { data, error } = await query;
     if (!error && data) {
-      const media = await reviewMedia(data.map((row) => row.id));
+      const reviewIds = data.map((row) => row.id);
+      const [media, authors, likes] = await Promise.all([
+        reviewMedia(reviewIds),
+        reviewAuthors(data.map((row) => row.user_id).filter((id): id is string => Boolean(id))),
+        reviewLikeCounts(reviewIds),
+      ]);
       return data.map((row) => {
       const booking = firstRelation(row.bookings);
       const album = firstRelation(row.portfolio_albums);
       return { id: row.id, booking_id: row.booking_id, user_id: row.user_id,
         customer_name: booking?.customer_name ?? 'Khách hàng', rating: row.rating, comment: row.comment,
         service_title: booking?.service_name_snapshot ?? '', portfolio_slug: album?.slug,
-        photos: media.get(row.id) ?? [], likes: 0,
+        avatar_url: row.user_id ? authors.get(row.user_id) : undefined,
+        photos: media.get(row.id) ?? [], likes: likes.get(row.id) ?? 0,
         is_public: row.is_public, is_featured: row.is_featured, created_at: row.created_at, updated_at: row.updated_at };
       }) as ExperienceReview[];
     }
@@ -106,6 +134,30 @@ export async function createReview(input: { bookingId: string; userId?: string; 
   save([review, ...localReviews()]);
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('review-created'));
   return { success: true, review };
+}
+
+export async function getUserReviewLikes(reviewIds: string[]): Promise<string[]> {
+  if (!reviewIds.length) return [];
+  try {
+    const { data: { user } } = await createClient().auth.getUser();
+    if (!user) return [];
+    const { data, error } = await createClient().rpc('get_my_review_likes', { target_review_ids: reviewIds });
+    if (error) return [];
+    return (data ?? []).map((id: string) => String(id));
+  } catch { return []; }
+}
+
+export async function toggleReviewLike(reviewId: string): Promise<{ success: boolean; liked: boolean; likeCount: number; message?: string }> {
+  try {
+    const { data: { user } } = await createClient().auth.getUser();
+    if (!user) return { success: false, liked: false, likeCount: 0, message: 'Vui lòng đăng nhập để thích đánh giá.' };
+    const { data, error } = await createClient().rpc('toggle_review_like', { target_review: reviewId });
+    const row = Array.isArray(data) ? data[0] : data;
+    if (error || !row) return { success: false, liked: false, likeCount: 0, message: error?.message };
+    return { success: true, liked: Boolean(row.liked), likeCount: Number(row.like_count ?? 0) };
+  } catch (error) {
+    return { success: false, liked: false, likeCount: 0, message: error instanceof Error ? error.message : undefined };
+  }
 }
 
 async function uploadReviewPhotos(reviewId: string, files: File[], userId?: string) {

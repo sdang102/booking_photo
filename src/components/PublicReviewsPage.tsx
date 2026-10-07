@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, CheckCircle2, ExternalLink, Quote, Star, ThumbsUp, X } from 'lucide-react';
 import { Stars } from '@/components/ReviewCard';
-import { reviewSummary } from '@/lib/services/reviewService';
+import { getUserReviewLikes, reviewSummary, toggleReviewLike as persistReviewLike } from '@/lib/services/reviewService';
+import { useAuth } from '@/lib/context/AuthContext';
 import type { ExperienceReview } from '@/types';
 import PublicMotionRoot from '@/components/motion/PublicMotionRoot';
 
@@ -15,9 +16,16 @@ export default function ReviewsPage({ initialReviews }: { initialReviews: Experi
   const [selected, setSelected] = useState<ExperienceReview | null>(null);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [likedIds, setLikedIds] = useState<string[]>([]);
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>(() => Object.fromEntries(initialReviews.map((review) => [review.id, review.likes ?? 0])));
   const [clock, setClock] = useState(0);
+  const { user } = useAuth();
 
   useEffect(() => { setClock(Date.now()); }, []);
+
+  useEffect(() => {
+    setLikeCounts(Object.fromEntries(initialReviews.map((review) => [review.id, review.likes ?? 0])));
+    void getUserReviewLikes(initialReviews.map((review) => review.id)).then(setLikedIds);
+  }, [initialReviews, user]);
 
   useEffect(() => {
     const id = window.location.hash.replace('#review-', '');
@@ -52,7 +60,20 @@ export default function ReviewsPage({ initialReviews }: { initialReviews: Experi
     setSelected(null);
     window.history.replaceState(null, '', window.location.pathname);
   };
-  const toggleLike = (id: string) => setLikedIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
+  const toggleLike = async (id: string) => {
+    const wasLiked = likedIds.includes(id);
+    setLikedIds((current) => wasLiked ? current.filter((value) => value !== id) : [...current, id]);
+    setLikeCounts((current) => ({ ...current, [id]: Math.max(0, (current[id] ?? 0) + (wasLiked ? -1 : 1)) }));
+    const result = await persistReviewLike(id);
+    if (result.success) {
+      setLikedIds((current) => result.liked ? (current.includes(id) ? current : [...current, id]) : current.filter((value) => value !== id));
+      setLikeCounts((current) => ({ ...current, [id]: result.likeCount }));
+    } else if (user) {
+      // Do not pretend a signed-in reaction was saved when the API is unavailable.
+      setLikedIds((current) => wasLiked ? [...current, id] : current.filter((value) => value !== id));
+      setLikeCounts((current) => ({ ...current, [id]: Math.max(0, (current[id] ?? 0) + (wasLiked ? 1 : -1)) }));
+    }
+  };
   const isExpanded = (id: string) => expandedIds.includes(id);
   const relativeTime = (value: string) => {
     const days = clock ? Math.max(0, Math.floor((clock - new Date(value).getTime()) / 86400000)) : 0;
@@ -80,14 +101,14 @@ export default function ReviewsPage({ initialReviews }: { initialReviews: Experi
       <div className="fin-review-grid">{filtered.map(review => {
         const expanded = isExpanded(review.id);
         const allPhotos = review.photos ?? [];
-        const photoList = allPhotos.slice(0, 5);
-        const likes = (review.likes ?? 0) + (likedIds.includes(review.id) ? 1 : 0);
+        const photoList = allPhotos.slice(0, 3);
+        const likes = likeCounts[review.id] ?? review.likes ?? 0;
         return <article key={review.id} id={`review-${review.id}`} data-reveal>
           <header className="fin-review-card__author"><div className="fin-review-card__identity"><span className="fin-review-card__avatar">{review.avatar_url ? <img src={review.avatar_url} alt="" /> : review.customer_name.slice(0, 1)}</span><div><strong>{review.customer_name}</strong><small>{review.service_title}</small></div></div><time>{relativeTime(review.created_at)}</time></header>
           <div className="fin-review-card__rating"><Stars rating={review.rating} /><span>{review.rating.toFixed(1)}</span><CheckCircle2 /></div>
           <blockquote className={expanded ? 'is-expanded' : ''}>“{review.comment}”</blockquote>
           {review.comment.length > 210 && <button type="button" className="fin-review-card__more" onClick={() => setExpandedIds((current) => expanded ? current.filter((id) => id !== review.id) : [...current, review.id])}>{expanded ? 'Thu gọn' : 'Xem thêm'}</button>}
-          {photoList.length > 0 && <div className="fin-review-grid__photos" aria-label={`Ảnh từ buổi chụp của ${review.customer_name}`}>{photoList.map((photo, index) => <button key={`${photo}-${index}`} type="button" onClick={() => openReview(review)}><img src={photo} alt={`Ảnh buổi chụp ${index + 1}`} />{index === 4 && allPhotos.length > 5 && <span>+{allPhotos.length - 5}</span>}</button>)}</div>}
+          {photoList.length > 0 && <div className="fin-review-grid__photos" aria-label={`Ảnh từ buổi chụp của ${review.customer_name}`}>{photoList.map((photo, index) => { const overflow = index === 2 && allPhotos.length > 3; return <button key={`${photo}-${index}`} type="button" className={overflow ? 'is-overflow' : ''} onClick={() => openReview(review)}><img src={photo} alt={`Ảnh buổi chụp ${index + 1}`} />{overflow && <span>+{allPhotos.length - 2}</span>}</button>; })}</div>}
           <footer><button type="button" className={likedIds.includes(review.id) ? 'is-liked' : ''} onClick={() => toggleLike(review.id)} aria-label={`Thích đánh giá của ${review.customer_name}`}><ThumbsUp /> Thích ({likes})</button><button type="button" className="fin-review-card__read" onClick={() => openReview(review)}>Đọc đầy đủ <ArrowRight /></button></footer>
         </article>;
       })}</div>
