@@ -193,12 +193,13 @@ export async function createBookingPhoto(
 // RLS quyết định phạm vi: photographer chỉ thấy lịch được giao, admin chỉ dùng cho báo cáo.
 interface BookingQueryOptions {
   fromDate?: string;
+  toDate?: string;
   statuses?: BookingStatus[];
   limit?: number;
   offset?: number;
 }
 
-export async function getAllBookings({ fromDate, statuses, limit = 200, offset = 0 }: BookingQueryOptions = {}): Promise<BookingPhotoRecord[]> {
+export async function getAllBookings({ fromDate, toDate, statuses, limit = 200, offset = 0 }: BookingQueryOptions = {}): Promise<BookingPhotoRecord[]> {
   try {
     const supabase = createClient();
     let query = supabase
@@ -208,6 +209,7 @@ export async function getAllBookings({ fromDate, statuses, limit = 200, offset =
       .range(offset, offset + limit - 1);
 
     if (fromDate) query = query.gte('shoot_date', fromDate);
+    if (toDate) query = query.lte('shoot_date', toDate);
     if (statuses?.length) query = query.in('status', statuses);
     const { data, error } = await query;
 

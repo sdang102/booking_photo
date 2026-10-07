@@ -112,7 +112,7 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
       if (typeof draft.notes === 'string') setNotes(draft.notes);
       if (draft.step === 3) setStep(3);
     } catch { /* Ignore malformed or unavailable drafts. */ }
-  }, [isOpen, services]);
+  }, [isOpen, services, user]);
 
   useEffect(() => {
     if (!isOpen || variant === 'page') return;

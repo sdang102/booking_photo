@@ -57,16 +57,13 @@ async function profileFromSupabase(authUser: { id:string; email?:string; user_me
 
     if (!contextError && contextRow) {
       const row = contextRow as Record<string, unknown>;
-      let avatarUrl = typeof row.avatar_url === 'string' ? row.avatar_url : undefined;
-      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url,avatar_path').eq('id', authUser.id).maybeSingle();
-      if (!avatarUrl) avatarUrl = typeof avatarRow?.avatar_url === 'string' ? avatarRow.avatar_url : undefined;
+      const avatarUrl = typeof row.avatar_url === 'string' ? row.avatar_url : undefined;
       profile = {
         id: authUser.id,
         email: authUser.email || String(row.email || ''),
         full_name: String(row.full_name || authUser.user_metadata?.full_name || 'Khách hàng'),
         phone: String(row.phone || authUser.user_metadata?.phone || ''),
         avatar_url: avatarUrl,
-        avatar_path: typeof avatarRow?.avatar_path === 'string' ? avatarRow.avatar_path : undefined,
         roles: normalizeRoles(row.roles),
       };
     } else {

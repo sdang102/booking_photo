@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Navbar from './Navbar';
-import AuthModal from './AuthModal';
-import MyBookingsModal from './MyBookingsModal';
 import { useAuth } from '@/lib/context/AuthContext';
-import { getActiveUserBookingCount, getUserBookings } from '@/lib/services/bookingService';
+import { getUserBookings } from '@/lib/services/bookingService';
 import type { BookingPhotoRecord } from '@/types';
+
+const AuthModal = dynamic(() => import('./AuthModal'), { ssr: false });
+const MyBookingsModal = dynamic(() => import('./MyBookingsModal'), { ssr: false });
 
 export default function PublicSiteHeader() {
   const router = useRouter();
@@ -19,11 +21,16 @@ export default function PublicSiteHeader() {
   const [activeBookingCount, setActiveBookingCount] = useState(0);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !bookingsOpen) return;
     let active = true;
     const load = () => {
       if (document.visibilityState === 'hidden') return;
-      getActiveUserBookingCount(user.id).then((count) => { if (active) setActiveBookingCount(count); });
+      getUserBookings(user.id, user.email, { limit: 50 }).then((items) => {
+        if (!active) return;
+        setBookings(items);
+        setActiveBookingCount(items.filter((booking) => !['completed', 'cancelled'].includes(booking.status)).length);
+        setBookingsLoading(false);
+      }).catch(() => { if (active) setBookingsLoading(false); });
     };
     const onVisibilityChange = () => { if (document.visibilityState === 'visible') load(); };
     void load();
@@ -36,17 +43,9 @@ export default function PublicSiteHeader() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.clearInterval(interval);
     };
-  }, [user]);
+  }, [bookingsOpen, user]);
 
-  const openBookings = async () => {
-    setBookingsOpen(true);
-    if (!user) return;
-    setBookingsLoading(true);
-    const items = await getUserBookings(user.id, user.email, { limit: 50 });
-    setBookings(items);
-    setActiveBookingCount(items.filter((booking) => !['completed', 'cancelled'].includes(booking.status)).length);
-    setBookingsLoading(false);
-  };
+  const openBookings = () => { setBookingsLoading(Boolean(user)); setBookingsOpen(true); };
 
   return <>
     <Navbar
@@ -56,7 +55,7 @@ export default function PublicSiteHeader() {
       bookingNotificationCount={user ? activeBookingCount : 0}
       bookingNotificationKey={`${user?.id ?? 'guest'}:${user ? activeBookingCount : 0}`}
     />
-    <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
-    <MyBookingsModal isOpen={bookingsOpen} isLoading={bookingsLoading} onClose={() => setBookingsOpen(false)} bookings={bookings} onNewBooking={() => router.push('/booking')} onOpenAuth={() => setAuthOpen(true)} />
+    {authOpen && <AuthModal isOpen onClose={() => setAuthOpen(false)} />}
+    {bookingsOpen && <MyBookingsModal isOpen isLoading={bookingsLoading} onClose={() => setBookingsOpen(false)} bookings={bookings} onNewBooking={() => router.push('/booking')} onOpenAuth={() => setAuthOpen(true)} />}
   </>;
 }

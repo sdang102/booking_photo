@@ -13,7 +13,8 @@ export default function PublicMotionRoot({ settings, children }: { settings?: Ho
   useEffect(() => {
     const scope = root.current;
     if (!scope) return;
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches || window.matchMedia('(max-width: 767px)').matches;
+    const mobileViewport = window.matchMedia('(max-width: 767px)').matches;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches || mobileViewport;
     const revealTargets = Array.from(scope.querySelectorAll<HTMLElement>([
       '[data-reveal]',
       '.fin-hero__content > *', '.fin-stats > *', '.fin-heading > *',
@@ -52,11 +53,13 @@ export default function PublicMotionRoot({ settings, children }: { settings?: Ho
         progressFrame = 0;
       });
     };
-    window.addEventListener('scroll', updateProgress, { passive: true });
-    updateProgress();
+    if (!mobileViewport) {
+      window.addEventListener('scroll', updateProgress, { passive: true });
+      updateProgress();
+    }
 
     return () => {
-      window.removeEventListener('scroll', updateProgress);
+      if (!mobileViewport) window.removeEventListener('scroll', updateProgress);
       if (progressFrame) window.cancelAnimationFrame(progressFrame);
       revealObserver?.disconnect();
     };

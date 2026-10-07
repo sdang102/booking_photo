@@ -90,8 +90,22 @@ Implemented:
 
 Verification: `npm run lint` pass, `npx tsc --noEmit` pass, `npm run build` pass. No real migration, deploy, or push was performed. Committed locally as `perf: giai đoạn 4 - upload không để rác`.
 
+## Giai đoạn 5 — Giảm tải frontend
+
+Status: **hoàn tất**.
+
+Implemented:
+
+- Photographer bookings now load 50 records per page from 30 days before today onward. The fixed 60-second interval and hard `limit: 200` fetch were removed; visible-tab/focus refresh runs only when the last fetch is older than about two minutes, and the existing booking-status event refreshes immediately after a local status change. Added `Tải thêm booking`.
+- `AuthModal` and `MyBookingsModal` are dynamically imported and rendered only after the corresponding user action. Public booking polling runs only while an authenticated user has the bookings modal open.
+- Kept AuthContext cache/request deduplication and removed an unnecessary profile query from the fast context path; the fallback still uses the existing role checks and profile fallback.
+- Added route-level `loading.tsx` and `error.tsx` for `/admin`, `/photographer`, `/profile`, and `/my-bookings`.
+- Removed reveal blur/filter transitions. On viewports up to 767px, the scroll-progress listener and progress layer are disabled; the existing mobile grain layer remains disabled.
+- Booking guest state is restored from `sessionStorage` after authentication as well as on initial open, preserving service/date/shift and entered details.
+
+Verification: `npm run lint` pass, `npx tsc --noEmit` pass, `npm run build` pass. No real migration, deploy, or push was performed. Committed locally as `perf: giai đoạn 5 - giảm tải frontend`.
+
 ## Các giai đoạn còn lại
 
-- Giai đoạn 5: giảm tải frontend.
 - Giai đoạn 6: dọn code thừa.
 - Giai đoạn 7: tách file lớn, không đổi hành vi.

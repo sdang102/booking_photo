@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import type { BookingPhotoRecord, Service } from '@/types';
 import { MOCK_SERVICES } from '@/lib/data/mockData';
 import BookingWizard from './BookingWizard';
-import AuthModal from './AuthModal';
 import PublicMotionRoot from './motion/PublicMotionRoot';
+
+const AuthModal = dynamic(() => import('./AuthModal'), { ssr: false });
 
 export default function FinBookingPage({ initialServices = MOCK_SERVICES }: { initialServices?: Service[] }) {
   const router = useRouter();
@@ -21,5 +23,5 @@ export default function FinBookingPage({ initialServices = MOCK_SERVICES }: { in
       {services.length ? <BookingWizard isOpen services={services} initialServiceId={searchParams.get('service') || undefined} onClose={() => router.push('/')} onBookingSuccess={setCompleted} onOpenAuth={() => setAuthOpen(true)} variant="page" /> : <p className="fin-booking-loading">Đang tải lịch và các gói chụp…</p>}
       {completed && <p className="sr-only" aria-live="polite">Đã gửi yêu cầu đặt lịch thành công.</p>}
     </div></section>
-  </main><AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} onSuccess={() => setAuthOpen(false)} /></PublicMotionRoot>;
+  </main>{authOpen && <AuthModal isOpen onClose={() => setAuthOpen(false)} onSuccess={() => setAuthOpen(false)} />}</PublicMotionRoot>;
 }
