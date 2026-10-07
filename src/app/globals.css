@@ -1525,6 +1525,11 @@ body.nav-open { overflow: hidden; }
    rhythm mirrors the desktop composition without forcing users through a long
    stack of single cards. */
 @media (max-width: 700px) {
+  /* The fixed mobile header must be opaque on portfolio pages; otherwise the
+     hero portrait remains visible through the translucent nav background. */
+  .fin-site .site-nav__inner { background: #0b0c10 !important; }
+  .fin-about-hero { padding-top: 5.75rem; }
+
   .fin-shell { width: min(1180px, calc(100% - 1.25rem)); }
   .fin-section { padding: 3.25rem 0; }
   .fin-heading--split { gap: .9rem; }
@@ -1628,7 +1633,8 @@ body.nav-open { overflow: hidden; }
   .fin-compare__head > strong { font-size: .47rem; }
 
   .fin-about-hero > .fin-shell, .fin-about-profile > .fin-shell { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: start; gap: .65rem; }
-  .fin-about-hero, .fin-about-profile { padding: 3.5rem 0; }
+  .fin-about-hero { padding: 5.75rem 0 3.5rem; }
+  .fin-about-profile { padding: 3.5rem 0; }
   .fin-about-hero__copy h1 { font-size: clamp(1.65rem, 7.4vw, 2.8rem); line-height: .96; }
   .fin-about-hero__copy > p:not(.fin-kicker), .fin-about-profile p:not(.fin-kicker) { font-size: .58rem; line-height: 1.55; }
   .fin-about-hero figure { min-height: 300px; }
