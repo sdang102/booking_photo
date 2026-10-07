@@ -82,26 +82,23 @@ export default function AvailabilityManager(){
 
   const unblock=async(block:AvailabilityBlock)=>{
     if(!window.confirm(`Bạn có chắc muốn gỡ chặn ${blockLabel(block)} ngày ${formatShortDate(block.date)}?\n\nCa này sẽ được mở lại cho khách đặt lịch.`))return;
-    setRemovingId(block.id);setMessage(null);
+    const previous=blocks;setRemovingId(block.id);setMessage(null);setBlocks((current)=>current.filter((item)=>item.id!==block.id));
     try{
       await removeAvailabilityBlock(block.id);
-      setBlocks((current)=>current.filter((item)=>item.id!==block.id));
       setMessage({type:'success',text:`Đã gỡ chặn ${blockLabel(block)} ngày ${formatShortDate(block.date)}.`});
-    }catch(error){setMessage({type:'error',text:error instanceof Error?error.message:'Không thể gỡ chặn lịch.'})}
+    }catch(error){setBlocks(previous);setMessage({type:'error',text:error instanceof Error?error.message:'Không thể gỡ chặn lịch.'})}
     finally{setRemovingId('')}
   };
 
   const unblockDay=async(day:string,dayBlocks:AvailabilityBlock[])=>{
     if(!dayBlocks.length)return;
     if(!window.confirm(`Bạn có chắc muốn gỡ toàn bộ ${dayBlocks.length} ca đang chặn ngày ${formatShortDate(day)}?\n\nTất cả các ca này sẽ được mở lại cho khách đặt lịch.`))return;
-    setRemovingDay(day);setMessage(null);
+    const previous=blocks;const removedIds=new Set(dayBlocks.map((block)=>block.id));setRemovingDay(day);setMessage(null);setBlocks((current)=>current.filter((block)=>!removedIds.has(block.id)));
     try{
       await Promise.all(dayBlocks.map((block)=>removeAvailabilityBlock(block.id)));
-      const removedIds=new Set(dayBlocks.map((block)=>block.id));
-      setBlocks((current)=>current.filter((block)=>!removedIds.has(block.id)));
       setMessage({type:'success',text:`Đã gỡ toàn bộ lịch chặn ngày ${formatShortDate(day)}.`});
     }catch(error){
-      setBlocks(await getPhotographerAvailabilityBlocks());
+      setBlocks(previous);
       setMessage({type:'error',text:error instanceof Error?error.message:'Không thể gỡ toàn bộ lịch chặn trong ngày.'});
     }finally{setRemovingDay('')}
   };

@@ -10,7 +10,19 @@ import { prepareImage, removeStorageImages, uploadPreparedImage, type PreparedIm
 import { refreshPublicContent } from '@/lib/client/revalidatePublicContent';
 
 type ImageRow={id:string;image_url:string;storage_path:string|null;thumb_url:string|null;thumb_path:string|null;alt_text:string|null;caption:string|null;width:number|null;height:number|null;display_order:number};
-type PendingImage={key:string;name:string;previewUrl:string;prepared:PreparedImage};
+type UploadState = 'queued' | 'uploading' | 'success' | 'error';
+type PendingImage={key:string;name:string;previewUrl:string;prepared:PreparedImage;state?:UploadState;progress?:number;error?:string};
+
+async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T, index: number) => Promise<void>) {
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      await worker(items[index], index);
+    }
+  });
+  await Promise.all(runners);
+}
 
 function errorMessage(error:unknown){
   if(error instanceof Error)return error.message;
@@ -57,13 +69,22 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
     event.preventDefault();if(!pending.length)return setMsg('Vui lòng chọn ít nhất một ảnh từ máy.');
     setBusy(true);setMsg('');const client=createClient();const failed:PendingImage[]=[];const errors:string[]=[];let added=0;
     try{
-      const results=await Promise.allSettled(pending.map(async(item,index)=>{
-        const uploaded=await uploadPreparedImage(item.prepared,item.name,{bucket:'portfolio',folder:`albums/${id}`});
-        const{error}=await client.from('portfolio_images').insert({album_id:id,image_url:uploaded.url,storage_path:uploaded.path,thumb_url:uploaded.thumbnailUrl,thumb_path:uploaded.thumbnailPath,width:uploaded.width,height:uploaded.height,alt_text:item.name,display_order:images.length+index});
-        if(error){await removeStorageImages('portfolio',[uploaded.path,uploaded.thumbnailPath]);throw new Error(/thumb_url|thumb_path|column/i.test(error.message)?'Hãy chạy migration Phase 2 trước khi thêm ảnh album.':error.message)}
-        return item;
-      }));
-      results.forEach((result,index)=>{if(result.status==='fulfilled'){added++;URL.revokeObjectURL(pending[index].previewUrl)}else{failed.push(pending[index]);errors.push(errorMessage(result.reason))}});
+      const queue = pending.map((item) => ({ ...item, state: 'queued' as UploadState, progress: 0, error: undefined }));
+      setPending(queue);
+      await runWithConcurrency(queue, 3, async (item, index) => {
+        setPending((current) => current.map((entry) => entry.key === item.key ? { ...entry, state: 'uploading', progress: 10 } : entry));
+        try {
+          const uploaded=await uploadPreparedImage(item.prepared,item.name,{bucket:'portfolio',folder:`albums/${id}`});
+          setPending((current) => current.map((entry) => entry.key === item.key ? { ...entry, progress: 75 } : entry));
+          const{error}=await client.from('portfolio_images').insert({album_id:id,image_url:uploaded.url,storage_path:uploaded.path,thumb_url:uploaded.thumbnailUrl,thumb_path:uploaded.thumbnailPath,width:uploaded.width,height:uploaded.height,alt_text:item.name,display_order:images.length+index});
+          if(error){await removeStorageImages('portfolio',[uploaded.path,uploaded.thumbnailPath]);throw new Error(/thumb_url|thumb_path|column/i.test(error.message)?'Hãy chạy migration Phase 2 trước khi thêm ảnh album.':error.message)}
+          added++; URL.revokeObjectURL(item.previewUrl);
+          setPending((current) => current.map((entry) => entry.key === item.key ? { ...entry, state: 'success', progress: 100 } : entry));
+        } catch (error) {
+          const message = errorMessage(error); failed.push({ ...item, state: 'error', progress: 100, error: message }); errors.push(message);
+          setPending((current) => current.map((entry) => entry.key === item.key ? { ...entry, state: 'error', progress: 100, error: message } : entry));
+        }
+      });
       setPending(failed);await load();
       setMsg(failed.length?`Đã thêm ${added} ảnh; ${failed.length} ảnh chưa lưu được: ${errors[0]??'Vui lòng thử lại.'}`:`Đã thêm ${added} ảnh vào album.`);
     }finally{setBusy(false)}
@@ -94,6 +115,7 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
     <Link href="/admin/albums" className="font-bold text-sky-700">← Quay lại Albums</Link>
     <div className="mt-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="section-kicker">Album</p><h1 className="mt-2 text-3xl font-black">{albumTitle||'Quản lý ảnh album'}</h1><p className="mt-2 text-sm text-slate-500">Album hiện có {images.length} ảnh. Bạn có thể thêm nhiều ảnh cùng lúc, thay ảnh, sửa thông tin hoặc xóa từng ảnh.</p></div></div>
 
+    {pending.some((item)=>item.state)&&<ul className="mt-6 space-y-2" aria-live="polite">{pending.filter((item)=>item.state).map((item)=><li key={`progress-${item.key}`} className="rounded-xl border border-sky-200 bg-white p-3 text-xs"><div className="flex items-center justify-between gap-3"><strong className="truncate">{item.name}</strong><span>{item.state==='uploading'?`${item.progress??0}%`:item.state==='error'?'Lỗi':item.state==='success'?'Đã lưu':'Đang chờ'}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-sky-100"><span className={`block h-full rounded-full ${item.state==='error'?'bg-rose-500':'bg-sky-500'}`} style={{width:`${item.progress??0}%`}} /></div>{item.error&&<p className="mt-1 text-rose-700">{item.error}</p>}</li>)}</ul>}
     <form onSubmit={add} className="mt-6 rounded-2xl border border-sky-200 bg-white p-5">
       {pending.length>0&&<div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{pending.map(item=><article key={item.key} className="relative overflow-hidden rounded-xl border border-sky-100 bg-slate-50"><div className="relative h-32"><Image src={item.previewUrl} alt={item.name} fill unoptimized sizes="200px" className="object-cover"/></div><p className="truncate px-2 py-2 text-[11px] font-semibold" title={item.name}>{item.name}</p><button type="button" onClick={()=>{URL.revokeObjectURL(item.previewUrl);setPending(current=>current.filter(image=>image.key!==item.key))}} aria-label={`Bỏ ${item.name}`} className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-lg bg-white/90 text-rose-700 shadow"><Trash2 className="h-3.5 w-3.5"/></button></article>)}</div>}
       <div className="flex flex-col gap-3 sm:flex-row"><label className="flex min-h-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-sky-300 bg-sky-50 px-5 text-sm font-bold text-sky-800"><ImagePlus className="h-4 w-4"/>{busy?'Đang xử lý ảnh…':'Chọn nhiều ảnh từ máy'}<input type="file" accept="image/*" multiple disabled={busy} onChange={event=>{void choose(event.target.files);event.target.value=''}} className="sr-only"/></label><button disabled={busy||!pending.length} className="sky-button min-h-12 shrink-0 rounded-xl px-6 disabled:opacity-50">{busy?'Đang lưu…':`Thêm ${pending.length||''} ảnh vào album`}</button></div>

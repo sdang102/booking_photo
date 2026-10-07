@@ -1,3 +1,23 @@
 'use client';
-import{useEffect,useState}from'react';import Link from'next/link';import RoleGuard from'@/components/RoleGuard';import BrandLogo from'@/components/BrandLogo';import{useAuth}from'@/lib/context/AuthContext';import{getUserBookings}from'@/lib/services/bookingService';import type{BookingPhotoRecord}from'@/types';import BookingStatusBadge from'@/components/photographer/BookingStatusBadge';
-export default function MyBookings(){const{user}=useAuth();const[items,setItems]=useState<BookingPhotoRecord[]>([]);useEffect(()=>{if(user)getUserBookings(user.id,user.email,{activeOnly:true}).then(setItems)},[user]);return <RoleGuard allow={['user','admin','photographer']}><main className="min-h-screen bg-background p-4 sm:p-8"><header className="mx-auto flex max-w-5xl items-center justify-between"><Link href="/" className="text-sm font-bold text-sky-800">← Trang chủ</Link><BrandLogo compact/></header><section className="mx-auto mt-10 max-w-5xl"><p className="section-kicker">Tài khoản</p><h1 className="mt-2 text-3xl font-black">Lịch đã đặt của tôi</h1><div className="mt-7 space-y-3">{items.map(item=><article key={item.id} className="rounded-2xl border border-sky-200 bg-elevated p-5"><div className="flex justify-between gap-3"><div><strong>{item.booking_date} · {item.booking_time}</strong><p className="mt-1 text-sm text-slate-600">{item.service_title}</p></div><BookingStatusBadge status={item.status}/></div></article>)}{!items.length&&<p className="rounded-2xl border border-sky-200 bg-elevated p-8 text-center text-slate-600">Bạn chưa có booking nào đang hoạt động.</p>}</div></section></main></RoleGuard>}
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import RoleGuard from '@/components/RoleGuard';
+import MyBookingsModal from '@/components/MyBookingsModal';
+import { useAuth } from '@/lib/context/AuthContext';
+import { getUserBookings } from '@/lib/services/bookingService';
+import type { BookingPhotoRecord } from '@/types';
+
+export default function MyBookings() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [items, setItems] = useState<BookingPhotoRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    getUserBookings(user.id, user.email, { limit: 50 }).then(setItems).finally(() => setLoading(false));
+  }, [user]);
+
+  return <RoleGuard allow={['user', 'admin', 'photographer']}><MyBookingsModal isOpen isLoading={loading} bookings={items} onClose={() => router.push('/')} onNewBooking={() => router.push('/booking')} onOpenAuth={() => router.push('/login?next=%2Fmy-bookings')} /></RoleGuard>;
+}

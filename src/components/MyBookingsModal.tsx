@@ -30,6 +30,7 @@ export default function MyBookingsModal({
   const { user } = useAuth();
   const [reviews, setReviews] = useState<ExperienceReview[]>([]);
   const [reviewsLoaded, setReviewsLoaded] = useState(false);
+  const [submittedReviewIds, setSubmittedReviewIds] = useState<string[]>([]);
   const [reviewBooking, setReviewBooking] = useState<BookingPhotoRecord | null>(null);
   useEffect(() => {
     if (!isOpen) return;
@@ -46,7 +47,7 @@ export default function MyBookingsModal({
         )
     : []).filter((booking) =>
       booking.status !== 'cancelled' &&
-      (booking.status !== 'completed' || (reviewsLoaded && !reviews.some((review) => review.booking_id === booking.id)))
+      (booking.status !== 'completed' || (reviewsLoaded && !reviews.some((review) => review.booking_id === booking.id) && !submittedReviewIds.includes(booking.id)))
     );
 
   return (
@@ -161,7 +162,7 @@ export default function MyBookingsModal({
                     </div>
                   )}
                   {booking.status === 'completed' && (
-                    reviews.some((review) => review.booking_id === booking.id) ? (
+                    reviews.some((review) => review.booking_id === booking.id) || submittedReviewIds.includes(booking.id) ? (
                       <div className="flex items-center justify-between border-t border-sky-100 pt-3 text-xs"><span className="font-semibold text-emerald-700">✓ Bạn đã đánh giá</span><a href="/reviews" className="font-bold text-sky-700">Xem đánh giá</a></div>
                     ) : (
                       <button onClick={() => setReviewBooking(booking)} className="w-full rounded-xl border border-sky-300 px-4 py-2.5 text-xs font-bold text-sky-700">Đánh Giá Trải Nghiệm</button>
@@ -192,7 +193,7 @@ export default function MyBookingsModal({
         </div>
 
       </div>
-      {reviewBooking && <ReviewForm booking={reviewBooking} userId={user?.id} onClose={() => setReviewBooking(null)} onSuccess={() => { setReviewBooking(null); getReviews().then((items) => { setReviews(items); setReviewsLoaded(true); }); }} />}
+      {reviewBooking && <ReviewForm booking={reviewBooking} userId={user?.id} onClose={() => setReviewBooking(null)} onSuccess={() => { const bookingId = reviewBooking.id; setReviewBooking(null); setSubmittedReviewIds((current) => current.includes(bookingId) ? current : [...current, bookingId]); getReviews().then((items) => { setReviews(items); setReviewsLoaded(true); }); }} />}
     </div>
   );
 }

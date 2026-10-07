@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -22,6 +23,28 @@ interface Props {
   variant?: 'modal' | 'page';
 }
 
+const BOOKING_DRAFT_KEY = 'fin-photo-booking-draft-v1';
+
+function saveBookingDraft(draft: Record<string, unknown>) {
+  try { sessionStorage.setItem(BOOKING_DRAFT_KEY, JSON.stringify(draft)); } catch { /* Storage can be unavailable in private browsing. */ }
+}
+
+function clearBookingDraft() {
+  try { sessionStorage.removeItem(BOOKING_DRAFT_KEY); } catch { /* Ignore storage cleanup failures. */ }
+}
+
+async function safeCreateBooking(payload: BookingFormData) {
+  try {
+    const result = await createBookingPhoto(payload);
+    if (!result.success && result.message && /booking:/i.test(result.message)) {
+      return { ...result, message: 'Không thể lưu yêu cầu lúc này. Vui lòng kiểm tra lại lịch và thử lại.' };
+    }
+    return result;
+  } catch {
+    return { success: false, message: 'Không thể kết nối để gửi yêu cầu. Vui lòng thử lại sau ít phút.' };
+  }
+}
+
 const STEP_LABELS = ['Chọn lịch', 'Thông tin', 'Kiểm tra'];
 const SHIFT_PRESENTATION = {
   morning: { title: 'Buổi Sáng', copy: 'Ánh sáng tự nhiên dịu êm', badge: 'Còn chỗ', icon: Sun },
@@ -29,7 +52,7 @@ const SHIFT_PRESENTATION = {
   evening: { title: 'Hoàng Hôn & Tối', copy: 'Chuyển sắc rực rỡ và đèn nghệ thuật', badge: 'Golden Hour', icon: Sunset },
 } as const;
 
-export default function BookingWizard({ isOpen, onClose, services, initialServiceId, initialDate, onBookingSuccess, variant = 'modal' }: Props) {
+export default function BookingWizard({ isOpen, onClose, services, initialServiceId, initialDate, onBookingSuccess, onOpenAuth, variant = 'modal' }: Props) {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [date, setDate] = useState(initialDate || '');
@@ -74,6 +97,24 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
   }, [isOpen, user]);
 
   useEffect(() => {
+    if (!isOpen) return;
+    try {
+      const raw = sessionStorage.getItem(BOOKING_DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof draft.serviceId === 'string' && services.some((item) => item.id === draft.serviceId)) setSelectedServiceId(draft.serviceId);
+      if (typeof draft.date === 'string') setDate(draft.date);
+      if (typeof draft.time === 'string') setTime(draft.time);
+      if (typeof draft.address === 'string') setAddress(draft.address);
+      if (typeof draft.name === 'string') setName(draft.name);
+      if (typeof draft.phone === 'string') setPhone(draft.phone);
+      if (typeof draft.email === 'string') setEmail(draft.email);
+      if (typeof draft.notes === 'string') setNotes(draft.notes);
+      if (draft.step === 3) setStep(3);
+    } catch { /* Ignore malformed or unavailable drafts. */ }
+  }, [isOpen, services]);
+
+  useEffect(() => {
     if (!servicePickerOpen) return;
     const closePicker = (event: PointerEvent) => {
       if (!servicePickerRef.current?.contains(event.target as Node)) setServicePickerOpen(false);
@@ -90,6 +131,7 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
   if (!isOpen) return null;
 
   const closeWizard = () => {
+    clearBookingDraft();
     setStep(1); setError(''); setSuccess(null); setDate(''); setTime(''); setAddress(''); setNotes('');
     setName(user?.full_name || ''); setPhone(user?.phone || ''); setEmail(user?.email || '');
     onClose();
@@ -98,7 +140,7 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
   const notice = error
     ? { type: 'error' as const, eyebrow: 'Chưa thể tiếp tục', title: 'Vui lòng kiểm tra lại', message: error, action: 'Đã hiểu' }
     : success
-      ? { type: 'success' as const, eyebrow: 'Đặt lịch thành công', title: 'Yêu cầu đã được gửi!', message: `Mã lịch: PHOT-${success.id.slice(-8).toUpperCase()}. Chúng tôi sẽ liên hệ xác nhận và tư vấn concept phù hợp với bạn.`, action: 'Hoàn tất' }
+      ? { type: 'success' as const, eyebrow: 'Đặt lịch thành công', title: 'Yêu cầu đã được gửi!', message: `Mã lịch: PHOT-${success.id.slice(-8).toUpperCase()}. Trạng thái: chờ xác nhận. Chúng tôi sẽ liên hệ để xác nhận lịch và tư vấn concept phù hợp với bạn.`, action: 'Hoàn tất' }
       : null;
 
   const closeNotice = () => {
@@ -110,11 +152,13 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
     setError('');
     if (!service) return setError('Gói chụp đang được tải. Vui lòng thử lại sau giây lát.');
     if (step === 1) {
+      if (availabilityLoading) return setError('Đang kiểm tra lịch trống. Vui lòng đợi một chút.');
       if (!date) return setError('Vui lòng chọn ngày chụp.');
       if (!time) return setError('Vui lòng chọn một ca còn trống.');
       if (!isRangeAvailable(date, time, calendarBookings, availabilityBlocks)) return setError('Ca này vừa có người giữ chỗ. Vui lòng chọn ca khác.');
     }
     if (step === 2) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError('Vui lòng nhập email hợp lệ.');
       if (address.trim().length < 5) return setError('Vui lòng nhập địa chỉ chụp cụ thể.');
       if (!name.trim() || !email.includes('@')) return setError('Vui lòng nhập đầy đủ họ tên và email hợp lệ.');
       if (!normalizeVietnameseMobile(phone)) return setError(VIETNAMESE_MOBILE_ERROR);
@@ -126,13 +170,19 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
     if (!service || submitting) return;
     const normalizedPhone = normalizeVietnameseMobile(phone);
     if (!normalizedPhone) return setError(VIETNAMESE_MOBILE_ERROR);
+    if (!user) {
+      saveBookingDraft({ serviceId: service.id, date, time, address, name, phone: normalizedPhone, email, notes, step: 3 });
+      setError('Bạn đã điền xong thông tin. Vui lòng đăng nhập hoặc đăng ký để gửi yêu cầu đặt lịch.');
+      onOpenAuth?.();
+      return;
+    }
     setSubmitting(true); setError('');
     const payload: BookingFormData = {
       customer_name: name.trim(), customer_phone: normalizedPhone, customer_email: email.trim(),
       service_id: service.id, service_title: service.title, booking_date: date, booking_time: time,
       location_type: 'outdoor', shoot_address: address.trim(), notes, addon_services: [], total_price: total, user_id: user?.id,
     };
-    const result = await createBookingPhoto(payload);
+    const result = await safeCreateBooking(payload);
     setSubmitting(false);
     if (result.success && result.data) { setSuccess(result.data); onBookingSuccess(result.data); }
     else { await refreshAvailability(); setError(result.message || 'Không thể tạo booking. Vui lòng thử lại.'); }
@@ -237,7 +287,7 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
 
             <footer className="booking-footer flex items-center justify-between gap-3 border-t border-sky-200 bg-elevated p-4 sm:px-7">
               <button onClick={() => { setError(''); if (step === 1) closeWizard(); else setStep(step - 1); }} className="inline-flex items-center gap-2 rounded-xl border border-sky-200 px-4 py-3 text-sm font-bold text-slate-600"><ChevronLeft className="h-4 w-4" />{step === 1 ? 'Đóng' : 'Quay lại'}</button>
-              {step < 3 ? <button onClick={next} className="sky-button inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm">{step === 1 ? 'Điền thông tin' : 'Kiểm tra lịch'}<ChevronRight className="h-4 w-4" /></button> : <button onClick={submit} disabled={submitting || !service} className="sky-button rounded-xl px-5 py-3 text-sm disabled:opacity-60">{submitting ? 'Đang gửi...' : 'Gửi yêu cầu đặt lịch'}</button>}
+              {step < 3 ? <button onClick={next} disabled={step === 1 && availabilityLoading} className="sky-button inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm disabled:cursor-wait disabled:opacity-60">{step === 1 && availabilityLoading ? 'Đang kiểm tra lịch…' : step === 1 ? 'Điền thông tin' : 'Kiểm tra lịch'}<ChevronRight className="h-4 w-4" /></button> : <button onClick={submit} disabled={submitting || !service} className="sky-button rounded-xl px-5 py-3 text-sm disabled:opacity-60">{submitting ? 'Đang gửi...' : 'Gửi yêu cầu đặt lịch'}</button>}
             </footer>
         </>
       </div>

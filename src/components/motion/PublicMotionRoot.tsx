@@ -13,7 +13,7 @@ export default function PublicMotionRoot({ settings, children }: { settings?: Ho
   useEffect(() => {
     const scope = root.current;
     if (!scope) return;
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches || window.matchMedia('(max-width: 767px)').matches;
     const revealTargets = Array.from(scope.querySelectorAll<HTMLElement>([
       '[data-reveal]',
       '.fin-hero__content > *', '.fin-stats > *', '.fin-heading > *',

@@ -57,6 +57,8 @@ export default function Navbar({
   }, [user]);
 
   useEffect(() => {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches || window.matchMedia('(max-width: 767px)').matches;
+    if (reducedMotion) return;
     let frameId = 0;
     lastScrollY.current = window.scrollY;
     const onScroll = () => {
