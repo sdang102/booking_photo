@@ -216,6 +216,9 @@ html[data-theme="dark"] {
 .site-nav__avatar span, .site-nav__avatar img { display: block; width: 100%; height: 100%; }
 .site-nav__avatar img { object-fit: cover; }
 .site-nav__avatar svg { width: 1.05rem; height: 1.05rem; margin: .6rem; }
+.nav-icon--avatar-mobile { display: none; }
+.nav-icon--avatar-mobile span, .nav-icon--avatar-mobile img { display: block; width: 100%; height: 100%; }
+.nav-icon--avatar-mobile img { object-fit: cover; border-radius: 50%; }
 .site-nav__desktop a { position: relative; font-size: .875rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .site-nav__desktop a::after { content: ""; position: absolute; right: 0; bottom: -.45rem; left: 0; height: 1px; background: currentColor; transform: scaleX(0); transform-origin: right; transition: transform .45s cubic-bezier(.22,1,.36,1); }
 .site-nav__desktop a:hover::after, .site-nav__desktop a.is-active::after { transform: scaleX(1); transform-origin: left; }
@@ -270,6 +273,9 @@ html[data-theme="dark"] .theme-switch__moon { color: var(--logo-ink); }
 .nav-account-panel__close { position: absolute; top: .75rem; right: .75rem; display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: 50%; color: var(--muted); }
 .nav-account-panel__close:hover { background: var(--brand-primary-soft); color: var(--accent-ink); }
 .nav-account-panel__close svg { width: .9rem; }
+.nav-account-panel__avatar { display: grid; width: 3.5rem; height: 3.5rem; margin-bottom: .8rem; place-items: center; overflow: hidden; border: 2px solid #fff; border-radius: 50%; background: var(--brand-primary-soft); color: var(--accent-ink); }
+.nav-account-panel__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.nav-account-panel__avatar svg { width: 1.25rem; height: 1.25rem; }
 .nav-account-panel > span { display: block; color: var(--accent-ink); font-size: .65rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 .nav-account-panel > strong { display: block; margin-top: .65rem; padding-right: 2rem; font-family: var(--font-editorial); font-size: 1.45rem; font-weight: 500; }
 .nav-account-panel > small { display: block; margin-top: .2rem; color: var(--muted); font-size: .75rem; }
@@ -1071,6 +1077,20 @@ body.nav-open { overflow: hidden; }
 .profile-avatar-editor p { margin: .25rem 0 0; color: #64748b; font-size: .75rem; line-height: 1.5; }
 .profile-avatar-editor__message { display: block; margin-top: .25rem; color: #1673a5; font-size: .7rem; }
 .profile-readonly { cursor: not-allowed; background: #f1f5f9 !important; color: #64748b; }
+.profile-section-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; border-bottom: 1px solid #d8e5ef; padding-bottom: .4rem; }
+.profile-section-tabs button { min-height: 2.7rem; border-radius: .7rem; color: #64748b; font-size: .72rem; font-weight: 800; }
+.profile-section-tabs button.is-active { background: #e6f4fb; color: #12658d; box-shadow: inset 0 -2px #1673a5; }
+.avatar-crop-backdrop { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgb(3 4 7 / .76); backdrop-filter: blur(10px); }
+.avatar-crop-dialog { width: min(100%, 25rem); border: 1px solid #c5a059; border-radius: 1.25rem; padding: 1.25rem; background: #1a1b22; color: #f1eee9; box-shadow: 0 2rem 6rem rgb(0 0 0 / .45); }
+.avatar-crop-dialog h2 { margin: 0 0 1rem; font-family: var(--font-editorial); font-size: 1.65rem; font-weight: 500; }
+.avatar-crop-preview { display: grid; width: min(100%, 20rem); aspect-ratio: 1; margin: auto; place-items: center; overflow: hidden; border: 3px solid #fff; border-radius: 50%; background: #0b0c10; }
+.avatar-crop-preview img { width: 100%; height: 100%; object-fit: cover; transform-origin: center; }
+.avatar-crop-zoom { display: grid; gap: .45rem; margin-top: 1rem; color: #c8c7ca; font-size: .75rem; font-weight: 700; }
+.avatar-crop-zoom input { accent-color: #c5a059; }
+.avatar-crop-actions { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1.1rem; }
+.avatar-crop-actions button { min-height: 2.6rem; border: 1px solid rgb(241 238 233 / .2); border-radius: 999px; padding: .6rem 1rem; color: #c8c7ca; font-size: .72rem; font-weight: 800; }
+.avatar-crop-actions button:last-child { border-color: #c5a059; background: #c5a059; color: #0b0c10; }
+.avatar-crop-actions button:disabled { opacity: .6; }
 .review-upload-box { position: relative; display: flex; min-height: 4.2rem; align-items: center; justify-content: center; gap: .55rem; overflow: hidden; border: 1px dashed #9ac7e1; border-radius: .85rem; background: #f4fbff; color: #17658c; font-size: .78rem; font-weight: 700; cursor: pointer; }
 .review-form-dialog { touch-action: pan-y; overscroll-behavior: contain; }
 .review-upload-box input { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; opacity: 0; }
@@ -1136,8 +1156,37 @@ body.nav-open { overflow: hidden; }
 @media (max-width: 899px) {
   .site-nav .nav-icon--menu, .fin-site .site-nav .nav-icon--menu { display: none !important; }
   .site-nav__brand-group { gap: .45rem; }
-  .site-nav__avatar { width: 2rem; height: 2rem; }
+  .site-nav__brand-group .site-nav__avatar { display: none; }
+  .site-nav .nav-icon--avatar-mobile { display: grid !important; width: 2.25rem; height: 2.25rem; overflow: hidden; padding: 0; }
+  .site-nav .nav-icon--avatar-mobile svg { width: 1rem; height: 1rem; }
 }
+
+@media (max-width: 900px) {
+  .user-bottom-nav { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .user-bottom-nav a, .user-bottom-nav button { font-size: .47rem; }
+}
+
+/* Keep the FIN PHOTO night palette; only the review card structure follows the reference. */
+.fin-reviews-page, .fin-reviews-page .fin-review-hero, .fin-reviews-page .fin-review-overview { background: #0b0c10; color: #f1eee9; }
+.fin-reviews-page .fin-review-library { background: #101116; color: #f1eee9; }
+.fin-reviews-page .fin-review-hero h1, .fin-reviews-page .fin-review-library__head h2 { color: #f1eee9; }
+.fin-reviews-page .fin-review-hero h1 em { color: #c5a059; }
+.fin-reviews-page .fin-review-hero__copy > p:not(.fin-kicker), .fin-reviews-page .fin-review-library__head > p { color: #8e8f99; }
+.fin-reviews-page .fin-review-score, .fin-reviews-page .fin-review-distribution, .fin-reviews-page .fin-review-featured { border-color: rgb(142 143 153 / .17); background: #1a1b22; color: #f1eee9; }
+.fin-reviews-page .fin-review-score > div strong, .fin-reviews-page .fin-review-score > small, .fin-reviews-page .fin-review-distribution header strong, .fin-reviews-page .fin-review-featured > span { color: #c5a059; }
+.fin-reviews-page .fin-review-score > div span, .fin-reviews-page .fin-review-score > p, .fin-reviews-page .fin-review-distribution header, .fin-reviews-page .fin-review-distribution small, .fin-reviews-page .fin-review-featured footer small { color: #8e8f99; }
+.fin-reviews-page .fin-review-featured { background: linear-gradient(110deg, #202127, #18191e); }
+.fin-reviews-page .fin-review-filters { border-color: rgb(142 143 153 / .17); }
+.fin-reviews-page .fin-review-filters button { border-color: rgb(142 143 153 / .2); color: #8e8f99; }
+.fin-reviews-page .fin-review-filters button.is-active { border-color: #c5a059; background: #c5a059; color: #0b0c10; }
+.fin-reviews-page .fin-review-grid article { border-color: rgb(142 143 153 / .17); background: #1a1b22; color: #f1eee9; box-shadow: none; }
+.fin-reviews-page .fin-review-grid article:hover { border-color: rgb(197 160 89 / .55); background: #202127; }
+.fin-reviews-page .fin-review-card__identity small, .fin-reviews-page .fin-review-card__author time, .fin-reviews-page .fin-review-grid footer button { color: #8e8f99; }
+.fin-reviews-page .fin-review-card__avatar { background: #303138; color: #c5a059; }
+.fin-reviews-page .fin-review-card__rating, .fin-reviews-page .fin-review-card__more { color: #c5a059; }
+.fin-reviews-page .fin-review-grid blockquote { color: #f1eee9; }
+.fin-reviews-page .fin-review-grid article > footer { border-top-color: rgb(142 143 153 / .16); }
+.fin-reviews-page .fin-review-grid footer button:hover, .fin-reviews-page .fin-review-grid footer button.is-liked { color: #c5a059; }
 
 @media (max-width: 820px) {
   .fin-review-hero > .fin-shell, .fin-review-overview > .fin-shell, .fin-review-library__head { grid-template-columns: 1fr; gap: 2.5rem; }

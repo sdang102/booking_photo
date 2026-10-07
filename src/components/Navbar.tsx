@@ -124,6 +124,7 @@ export default function Navbar({
             ) : (
               <button type="button" onClick={onOpenAuth} className="nav-icon nav-icon--login" aria-label="Đăng nhập" title="Đăng nhập"><User /></button>
             )}
+            {user && <button type="button" onClick={() => setAccountOpen((value) => !value)} className="nav-icon nav-icon--avatar-mobile" title="Quản lý tài khoản" aria-label="Quản lý tài khoản" aria-expanded={accountOpen}><span>{user.avatar_url ? <img src={user.avatar_url} alt="" /> : <User />}</span></button>}
             <button type="button" onClick={toggleMenu} className="nav-icon nav-icon--menu" aria-expanded={menuOpen} aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}>
               {menuOpen ? <X /> : <Menu />}
             </button>
@@ -134,6 +135,7 @@ export default function Navbar({
       {user && accountOpen && (
         <aside className="nav-account-panel" aria-label="Quản lý tài khoản">
           <button type="button" onClick={() => setAccountOpen(false)} className="nav-account-panel__close" aria-label="Đóng quản lý tài khoản"><X /></button>
+          <Link href="/profile" onClick={() => setAccountOpen(false)} className="nav-account-panel__avatar" aria-label="Mở hồ sơ và đổi ảnh đại diện">{user.avatar_url ? <img src={user.avatar_url} alt="Ảnh đại diện" /> : <User />}</Link>
           <span>Tài khoản của bạn</span>
           <strong>{user.full_name}</strong>
           <small>{user.email}</small>
@@ -182,6 +184,10 @@ export default function Navbar({
         <Link href="/portfolio" className={isActive('/portfolio') ? 'is-active' : ''}>
           <span className="workspace-nav__icon"><Images /></span>
           <span>Bộ sưu tập</span>
+        </Link>
+        <Link href="/about" className={isActive('/about') ? 'is-active' : ''}>
+          <span className="workspace-nav__icon"><Aperture /></span>
+          <span>Portfolio</span>
         </Link>
         <Link href="/reviews" className={isActive('/reviews') ? 'is-active' : ''}>
           <span className="workspace-nav__icon"><Star /></span>
