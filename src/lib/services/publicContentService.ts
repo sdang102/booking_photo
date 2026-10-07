@@ -16,6 +16,8 @@ import type {
  * pages dynamic and gives all public routes one cache/revalidation boundary.
  */
 const CONTENT_TAG = 'public-content';
+const PUBLIC_IMAGE_FALLBACK = '/fin-hero-bg.jpg';
+const MAX_PUBLIC_IMAGE_VALUE_LENGTH = 512_000;
 const ALBUM_COVER_SELECT = 'id,slug,title,shoot_date,location_text,cover_image,cover_image_mobile,display_order,is_public,categories(slug),locations(name)';
 const ALBUM_DETAIL_SELECT = `${ALBUM_COVER_SELECT},portfolio_images(id,image_url,storage_path,thumb_url,thumb_path,alt_text,width,height,display_order)`;
 const ALBUM_DETAIL_SELECT_LEGACY = `${ALBUM_COVER_SELECT},portfolio_images(id,image_url,storage_path,alt_text,width,height,display_order)`;
@@ -45,6 +47,30 @@ function relation<T>(value: T | T[] | null | undefined): T | undefined {
   return Array.isArray(value) ? value[0] : value ?? undefined;
 }
 
+/**
+ * Legacy rows can still contain multi-megabyte data URLs. Never put those
+ * values in public RSC/ISR payloads: Vercel rejects fallback bodies over its
+ * size limit. Storage URLs remain untouched, while legacy inline images use a
+ * small local fallback until they are migrated to Supabase Storage.
+ */
+function safePublicImage(value: unknown): string {
+  if (typeof value !== 'string') return PUBLIC_IMAGE_FALLBACK;
+  const normalized = value.trim();
+  if (!normalized || normalized.length > MAX_PUBLIC_IMAGE_VALUE_LENGTH || normalized.toLowerCase().startsWith('data:')) {
+    return PUBLIC_IMAGE_FALLBACK;
+  }
+  return normalized;
+}
+
+function optionalPublicImage(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim();
+  if (!normalized || normalized.length > MAX_PUBLIC_IMAGE_VALUE_LENGTH || normalized.toLowerCase().startsWith('data:')) {
+    return undefined;
+  }
+  return normalized;
+}
+
 function mapAlbum(row: AlbumRow): PortfolioAlbum {
   const category = relation(row.categories);
   const location = relation(row.locations);
@@ -55,8 +81,8 @@ function mapAlbum(row: AlbumRow): PortfolioAlbum {
     category: (category?.slug ?? 'concept') as PortfolioAlbum['category'],
     location: row.location_text ?? location?.name ?? undefined,
     shoot_date: row.shoot_date ?? undefined,
-    cover_url: row.cover_image ?? '',
-    mobile_cover_url: row.cover_image_mobile ?? undefined,
+    cover_url: safePublicImage(row.cover_image),
+    mobile_cover_url: optionalPublicImage(row.cover_image_mobile),
     images: [],
   };
 }
@@ -65,8 +91,8 @@ function mapAlbumDetail(row: AlbumRow): PortfolioAlbum {
   const album = mapAlbum(row);
   album.images = (row.portfolio_images ?? []).map((image): PortfolioImage => ({
     id: String(image.id),
-    url: String(image.image_url),
-    thumbnail_url: image.thumb_url ? String(image.thumb_url) : String(image.image_url),
+    url: safePublicImage(image.image_url),
+    thumbnail_url: safePublicImage(image.thumb_url ?? image.image_url),
     alt: String(image.alt_text ?? row.title),
     width: Number(image.width) || 1200,
     height: Number(image.height) || 800,
@@ -140,7 +166,7 @@ async function queryHomepage(): Promise<HomepageSection[]> {
     section_key: String(item.section_key),
     title: item.title ?? undefined,
     subtitle: item.subtitle ?? undefined,
-    image_url: item.image_url ?? undefined,
+    image_url: optionalPublicImage(item.image_url),
     content: item.content && typeof item.content === 'object' ? item.content as Record<string, unknown> : {},
     is_visible: Boolean(item.is_visible),
     display_order: Number(item.display_order ?? 0),
@@ -179,7 +205,7 @@ async function queryServices(): Promise<Service[]> {
           price: Number(row.price),
           duration_minutes: row.duration_minutes,
           features: Array.isArray(row.features) ? row.features : [],
-          image_url: row.cover_image ?? '',
+          image_url: safePublicImage(row.cover_image),
           is_popular: row.is_featured,
           edited_photos: row.edited_photo_count,
           concept_count: row.concept_count,
