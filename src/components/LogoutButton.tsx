@@ -3,12 +3,10 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LogOut, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/context/AuthContext';
 
 export default function LogoutButton({className='',label,onClick}:{className?:string;label?:string;onClick?:()=>void}){
   const {logout}=useAuth();
-  const router=useRouter();
   const[open,setOpen]=useState(false);
   const[busy,setBusy]=useState(false);
 
@@ -28,8 +26,7 @@ export default function LogoutButton({className='',label,onClick}:{className?:st
     setBusy(true);
     await logout();
     onClick?.();
-    router.replace('/');
-    router.refresh();
+    window.location.replace('/');
   };
 
   const modal=open?createPortal(

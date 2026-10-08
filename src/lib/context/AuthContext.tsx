@@ -14,6 +14,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isPhotographer: boolean;
   isLoading: boolean;
+  isSigningOut: boolean;
   login: (email: string, password?: string) => Promise<AuthResult>;
   register: (email: string, password: string, fullName: string, phone: string) => Promise<AuthResult>;
   resendConfirmation: (email: string) => Promise<AuthResult>;
@@ -97,6 +98,7 @@ async function profileFromSupabase(authUser: { id:string; email?:string; user_me
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [authError, setAuthError] = useState('');
   const [retryKey, setRetryKey] = useState(0);
 
@@ -222,9 +224,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    setIsSigningOut(true);
+    setIsLoading(true);
+    profileCache = null;
+    profileRequest = null;
+    setUser(null);
     try { await createClient().auth.signOut(); }
     catch (error) { reportError(error, { area: 'auth', operation: 'logout' }); }
-    profileCache = null; profileRequest = null; setUser(null);
   };
 
   const resendConfirmation = async (email: string): Promise<AuthResult> => {
@@ -312,7 +318,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const value = { user, isAdmin: hasRole(user, 'admin'), isPhotographer: hasRole(user, 'photographer'), isLoading, login, register, resendConfirmation, updateProfile, updateAvatar, changePassword, logout };
+  const value = { user, isAdmin: hasRole(user, 'admin'), isPhotographer: hasRole(user, 'photographer'), isLoading, isSigningOut, login, register, resendConfirmation, updateProfile, updateAvatar, changePassword, logout };
   return <AuthContext.Provider value={value}>{authError && <div role="alert" className="fixed inset-x-3 top-3 z-[300] mx-auto max-w-xl rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 shadow-lg"><span>{authError}</span><button type="button" onClick={() => { setIsLoading(true); setAuthError(''); setRetryKey((value) => value + 1); }} className="ml-2 font-bold underline">Thử lại</button></div>}{children}</AuthContext.Provider>;
 }
 
