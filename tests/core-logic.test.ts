@@ -6,6 +6,7 @@ import { normalizeRoles } from '../src/lib/auth/permissions';
 import { getReviewPageCursor } from '../src/lib/reviewPagination';
 import { normalizeRevenueDateRange } from '../src/lib/revenueRange';
 import { validateAdminPayload } from '../src/lib/adminValidation';
+import { isAccountDisabled, validateAccountInput } from '../src/lib/adminAccounts';
 import type { PublicScheduleItem } from '../src/types';
 
 const NOW = new Date('2026-01-10T05:00:00.000Z');
@@ -66,5 +67,18 @@ describe('revenue date range and admin validation', () => {
   it('rejects unsafe admin values before submit', () => {
     expect(validateAdminPayload('services', { price: -1, slug: 'Bad Slug' })).toContain('không âm');
     expect(validateAdminPayload('services', { price: 100, duration_minutes: 90, slug: 'portrait-basic' })).toBeNull();
+  });
+});
+
+describe('admin account validation', () => {
+  it('normalizes account fields and rejects missing roles', () => {
+    const result = validateAccountInput({ email: ' ADMIN@Example.com ', fullName: ' Admin Photo ', phone: '+84 912-345-678', password: 'password1', roles: ['admin', 'photographer', 'bad'] }, true);
+    expect(result.data).toEqual({ email: 'admin@example.com', fullName: 'Admin Photo', phone: '0912345678', password: 'password1', roles: ['admin', 'photographer'] });
+    expect(validateAccountInput({ email: 'a@example.com', fullName: 'Admin', phone: '', roles: [] }, false).error).toContain('vai trò');
+  });
+
+  it('detects only bans that are still active', () => {
+    expect(isAccountDisabled('2027-01-01T00:00:00Z', Date.parse('2026-01-01T00:00:00Z'))).toBe(true);
+    expect(isAccountDisabled('2025-01-01T00:00:00Z', Date.parse('2026-01-01T00:00:00Z'))).toBe(false);
   });
 });

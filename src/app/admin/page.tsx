@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, BarChart3, HelpCircle, MessageSquare, Package, Settings } from 'lucide-react';
+import { AlertTriangle, BarChart3, HelpCircle, MessageSquare, Package, Settings, UsersRound } from 'lucide-react';
 import { getActiveUnassignedBookingCount, getBookingRevenueSummary, type BookingRevenueSummary } from '@/lib/services/bookingService';
 import { formatVND } from '@/components/ServiceCard';
 
@@ -10,6 +10,7 @@ const modules=[
   {href:'/admin/services',label:'Gói chụp',description:'Thêm, sửa, ẩn giá và nội dung dịch vụ.',icon:Package},
   {href:'/admin/faq',label:'FAQ',description:'Cập nhật câu hỏi thường gặp trên trang dịch vụ.',icon:HelpCircle},
   {href:'/admin/reviews',label:'Kiểm duyệt đánh giá',description:'Ẩn, hiện và chọn đánh giá nổi bật.',icon:MessageSquare},
+  {href:'/admin/accounts',label:'Quản lý tài khoản',description:'Tạo, sửa, phân quyền, khóa hoặc xóa tài khoản.',icon:UsersRound},
   {href:'/admin/settings',label:'Cài đặt website',description:'Thông tin liên hệ, chính sách và SEO.',icon:Settings},
 ];
 

@@ -16,7 +16,8 @@ import { formatVND } from '@/components/ServiceCard';
 const PAGE_SIZE = 50;
 const EMPTY_SUMMARY: BookingRevenueSummary = { total: 0, realized: 0, expected: 0, atVenue: 0, activeCount: 0 };
 const AdminCrudPanel = dynamic(() => import('@/components/admin/AdminCrudPanel'), { ssr: false, loading: () => <div className="h-40 animate-pulse rounded-2xl bg-sky-50" /> });
-const titles: Record<string, string> = { homepage: 'Nội dung trang chủ', services: 'Gói chụp', addons: 'Dịch vụ bổ sung', categories: 'Bộ lọc bộ sưu tập', portfolio: 'Tác phẩm nổi bật', albums: 'Album ảnh', locations: 'Địa điểm', faq: 'FAQ', reviews: 'Đánh giá', revenue: 'Doanh thu', settings: 'Cài đặt' };
+const AdminAccountsPanel = dynamic(() => import('@/components/admin/AdminAccountsPanel'), { ssr: false, loading: () => <div className="h-40 animate-pulse rounded-2xl bg-sky-50" /> });
+const titles: Record<string, string> = { homepage: 'Nội dung trang chủ', services: 'Gói chụp', addons: 'Dịch vụ bổ sung', categories: 'Bộ lọc bộ sưu tập', portfolio: 'Tác phẩm nổi bật', albums: 'Album ảnh', locations: 'Địa điểm', faq: 'FAQ', reviews: 'Đánh giá', accounts: 'Quản lý tài khoản', revenue: 'Doanh thu', settings: 'Cài đặt' };
 const statusLabels: Record<BookingStatus, string> = { pending: 'Chờ xác nhận', confirmed: 'Đã xác nhận', checked_in: 'Đã check-in', shooting: 'Đang chụp', completed: 'Hoàn tất', cancelled: 'Đã hủy' };
 type RevenuePeriod = 'all' | 'day' | 'month' | 'year';
 
@@ -72,6 +73,7 @@ export default function AdminSectionPage({ params }: { params: Promise<{ section
 function SectionContent({ section, bookings, summary, hasMore, loading, status, period, dateValue, onStatusChange, onPeriodChange, onDateChange, onLoadMore }: { section: string; bookings: BookingFinancialRecord[]; summary: BookingRevenueSummary; hasMore: boolean; loading: boolean; status: BookingStatus | 'all'; period: RevenuePeriod; dateValue: string; onStatusChange: (value: BookingStatus | 'all') => void; onPeriodChange: (value: RevenuePeriod) => void; onDateChange: (value: string) => void; onLoadMore: () => void }) {
   if (['homepage', 'services', 'addons', 'categories', 'portfolio', 'albums', 'locations', 'faq', 'settings'].includes(section)) return <AdminCrudPanel section={section} />;
   if (section === 'reviews') return <Link href="/admin/reviews" className="sky-button inline-flex rounded-xl px-5 py-3">Mở quản lý đánh giá</Link>;
+  if (section === 'accounts') return <AdminAccountsPanel />;
   if (section === 'revenue') return <RevenueContent bookings={bookings} summary={summary} hasMore={hasMore} loading={loading} status={status} period={period} dateValue={dateValue} onStatusChange={onStatusChange} onPeriodChange={onPeriodChange} onDateChange={onDateChange} onLoadMore={onLoadMore} />;
   return <div className="rounded-2xl border border-sky-200 bg-white p-6">Không tìm thấy mục quản trị.</div>;
 }

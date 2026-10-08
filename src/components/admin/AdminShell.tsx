@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Cog, HelpCircle, ImageIcon, LayoutDashboard, MessageSquare, Package, Tags } from 'lucide-react';
+import { BarChart3, Cog, HelpCircle, ImageIcon, LayoutDashboard, MessageSquare, Package, Tags, UsersRound } from 'lucide-react';
 import RoleGuard from '@/components/RoleGuard';
 import BrandLogo from '@/components/BrandLogo';
 import LogoutButton from '@/components/LogoutButton';
@@ -16,6 +16,7 @@ const NAV=[
   {href:'/admin/albums',label:'Albums',icon:ImageIcon},
   {href:'/admin/faq',label:'FAQ',icon:HelpCircle},
   {href:'/admin/reviews',label:'Đánh giá',icon:MessageSquare},
+  {href:'/admin/accounts',label:'Tài khoản',icon:UsersRound},
   {href:'/admin/revenue',label:'Doanh thu',icon:BarChart3},
   {href:'/admin/settings',label:'Cài đặt',icon:Cog},
 ];
