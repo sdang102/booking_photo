@@ -1,12 +1,13 @@
-'use client';
-
-import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Check, Clock3, Images, Plus } from 'lucide-react';
 import type { FaqItem, Service, ServiceAddon } from '@/types';
-import { formatVND } from './ServiceCard';
 import PublicMotionRoot from './motion/PublicMotionRoot';
+import ServicesFaq from './ServicesFaq';
+
+function formatVND(value: number) {
+  return `${new Intl.NumberFormat('vi-VN').format(value)}đ`;
+}
 
 const defaultExtras: ServiceAddon[] = [
   {id:'extra-time',title:'Thêm giờ sáng tác',description:'Mở rộng thời gian chụp cho concept nhiều bối cảnh.',price:800000,price_label:'Từ 800.000đ / giờ'},
@@ -21,10 +22,9 @@ const defaultFaqs: Array<[string, string]> = [
 ];
 
 export default function FinServicesPage({ initialServices = [], initialExtras = defaultExtras, initialFaqs }: { initialServices?: Service[]; initialExtras?: ServiceAddon[]; initialFaqs?: FaqItem[] | null }) {
-  const [services] = useState<Service[]>(initialServices);
-  const [extras] = useState<ServiceAddon[]>(initialExtras);
-  const [faqs] = useState<Array<[string, string]>>(() => initialFaqs === null || initialFaqs === undefined ? defaultFaqs : initialFaqs.map((faq) => [faq.question, faq.answer]));
-  const [open, setOpen] = useState(0);
+  const services = initialServices;
+  const extras = initialExtras;
+  const faqs = initialFaqs === null || initialFaqs === undefined ? defaultFaqs : initialFaqs.map((faq) => [faq.question, faq.answer] as [string, string]);
   const plans = services.slice(0, 3);
 
   return <PublicMotionRoot><main className="fin-services-page fin-site">
@@ -43,7 +43,7 @@ export default function FinServicesPage({ initialServices = [], initialExtras = 
       ['Hướng dẫn tạo dáng', ...plans.map(() => 'Xuyên suốt')],
     ].map(row => <div className="fin-compare__row" key={row[0]}>{row.map((cell, i) => <span key={`${cell}-${i}`}>{cell}</span>)}</div>)}</div></div></section>
     <section className="fin-extras"><div className="fin-shell"><header className="fin-heading fin-heading--split"><div><p className="fin-kicker"><span /> Tùy biến trải nghiệm</p><h2>Dịch vụ bổ sung.</h2></div><p>Linh hoạt nâng cấp các chi tiết sáng tạo để buổi chụp trở thành một trải nghiệm trọn vẹn hơn.</p></header><div>{extras.map(item => <article key={item.id}><Plus /><h3>{item.title}</h3><p>{item.description}</p><strong>{item.price_label||formatVND(item.price)}</strong></article>)}</div></div></section>
-    <section className="fin-service-faq"><div className="fin-shell"><header><p className="fin-kicker"><span /> Giải đáp thắc mắc</p><h2>Những câu hỏi<br />thường gặp.</h2></header><div>{faqs.map(([question, answer], index) => <article className={open === index ? 'is-open' : ''} key={question}><button onClick={() => setOpen(open === index ? -1 : index)}><span>{question}</span><Plus /></button><p>{answer}</p></article>)}</div></div></section>
+    <ServicesFaq faqs={faqs} />
     <section className="fin-service-cta"><div className="fin-shell"><div><p className="fin-kicker"><span /> Direct booking</p><h2>Sẵn sàng cho kiệt tác của riêng bạn?</h2><p>Chia sẻ ý tưởng và thời gian mong muốn. FIN PHOTO sẽ tư vấn gói chụp phù hợp nhất.</p></div><Link href="/booking">Gửi yêu cầu giữ lịch <ArrowRight /></Link></div></section>
   </main></PublicMotionRoot>;
 }

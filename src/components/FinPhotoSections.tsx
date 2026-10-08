@@ -1,12 +1,13 @@
-'use client';
-
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, AtSign, Camera, Check, Mail, MessageCircle, MoveUpRight, Music2, Phone, Sparkles } from 'lucide-react';
 import type { PortfolioAlbum, Service } from '@/types';
 import type { PublicSiteSettings } from '@/lib/services/siteSettingsService';
-import { formatVND } from './ServiceCard';
 import ResponsiveAlbumImage from './ResponsiveAlbumImage';
+
+function formatVND(value: number) {
+  return `${new Intl.NumberFormat('vi-VN').format(value)}đ`;
+}
 
 const defaultCraft = [
   { title: 'Chân dung nghệ thuật', copy: 'Ánh sáng có chủ đích, tôn lên khí chất và câu chuyện rất riêng của bạn.', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=88' },
@@ -22,7 +23,7 @@ const process = [
   ['04', 'Hậu kỳ & bàn giao', 'Tuyển chọn, chỉnh màu thủ công và bàn giao đúng thời gian cam kết.'],
 ];
 
-export function FinHero({ onBook }: { onBook: () => void }) {
+export function FinHero() {
   return <section className="fin-hero">
     <Image src="/fin-hero-bg.jpg" alt="Khoảnh khắc nghệ thuật qua ống kính FIN PHOTO" fill priority sizes="100vw" className="fin-hero__image" />
     <div className="fin-hero__veil" />
@@ -30,7 +31,7 @@ export function FinHero({ onBook }: { onBook: () => void }) {
       <p className="fin-kicker"><span /> FIN PHOTO · SGN</p>
       <h1>Những khoảnh khắc <em>đẹp nhất</em><br />đôi khi chỉ cần được ghi lại<br />một cách thật <em>tinh tế.</em></h1>
       <div className="fin-actions">
-        <button type="button" className="fin-button fin-button--gold" onClick={onBook}>Khám phá gói chụp <ArrowRight /></button>
+        <Link className="fin-button fin-button--gold" href="/services">Khám phá gói chụp <ArrowRight /></Link>
         <Link className="fin-button fin-button--ghost" href="/about">Xem portfolio <MoveUpRight /></Link>
       </div>
     </div>
@@ -94,8 +95,8 @@ export function FinPortfolioStory() {
   </div></section>;
 }
 
-export function FinClosing({ onBook }: { onBook: () => void }) {
-  return <section className="fin-section fin-closing"><div className="fin-shell"><div><p className="fin-kicker"><span /> Bắt đầu một dự án riêng</p><h2>Bạn có ý tưởng cho bộ ảnh của riêng mình?</h2><p>Hãy để chúng tôi cùng bạn biến một cảm hứng thành những khung hình có chiều sâu và mang đúng dấu ấn cá nhân.</p><button className="fin-button fin-button--gold" type="button" onClick={onBook}>Đặt lịch tư vấn <ArrowRight /></button></div></div></section>;
+export function FinClosing() {
+  return <section className="fin-section fin-closing"><div className="fin-shell"><div><p className="fin-kicker"><span /> Bắt đầu một dự án riêng</p><h2>Bạn có ý tưởng cho bộ ảnh của riêng mình?</h2><p>Hãy để chúng tôi cùng bạn biến một cảm hứng thành những khung hình có chiều sâu và mang đúng dấu ấn cá nhân.</p><Link className="fin-button fin-button--gold" href="/booking">Đặt lịch tư vấn <ArrowRight /></Link></div></div></section>;
 }
 
 export function FinFooter({ settings }: { settings: PublicSiteSettings }) {

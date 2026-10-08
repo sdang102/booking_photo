@@ -12,6 +12,9 @@ export interface Service {
   edited_photos?: number;
   concept_count?: number;
   location_count?: string;
+  outfit_count?: number;
+  consultation_level?: string;
+  tier_label?: string;
 }
 
 export type PortfolioCategory = 'couple' | 'portrait' | 'pre-wedding' | 'family' | 'event' | 'concept';

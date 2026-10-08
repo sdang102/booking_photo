@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
     "seed:test-users": "node scripts/create-test-users.mjs"
   },
   "dependencies": {
@@ -29,6 +30,7 @@
     "eslint-config-next": "16.3.6",
     "sharp": "^0.35.5",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^2.1.9"
   }
 }

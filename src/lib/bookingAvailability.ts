@@ -4,6 +4,7 @@ export const BOOKING_DAY_START = '08:00';
 export const BOOKING_DAY_END = '20:00';
 export const MIN_CUSTOM_BOOKING_MINUTES = 30;
 export const MAX_BOOKINGS_PER_DAY = 2;
+export const MAX_BOOKING_DAYS_AHEAD = 90;
 export const BOOKING_SHIFTS = [
   { id:'morning', label:'Ca sáng', range:'08:30 - 10:30' },
   { id:'afternoon', label:'Ca chiều', range:'13:30 - 15:30' },
@@ -48,6 +49,19 @@ export function rangesOverlap(first: string, second: string) {
     && secondStart < firstEnd;
 }
 
+export function isWithinBookingWindow(date: string, now = new Date()) {
+  const today = fromDateKey(todayKey(now));
+  const target = fromDateKey(date);
+  if (!Number.isFinite(target.getTime())) return false;
+  const daysAhead = Math.round((target.getTime() - today.getTime()) / 86_400_000);
+  return daysAhead >= 0 && daysAhead <= MAX_BOOKING_DAYS_AHEAD;
+}
+
+function fromDateKey(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day, 12);
+}
+
 export function activeBookingRanges(date: string, bookings: PublicScheduleItem[]) {
   return bookings
     .filter((booking) => booking.booking_date === date && ACTIVE_STATUSES.has(booking.status))
@@ -71,7 +85,7 @@ export function isRangeAvailable(
   const workStart = timeToMinutes(BOOKING_DAY_START);
   const workEnd = timeToMinutes(BOOKING_DAY_END);
   if (!date || !Number.isFinite(start) || !Number.isFinite(end)) return false;
-  if (date < todayKey(now) || start < workStart || end > workEnd || end - start < MIN_CUSTOM_BOOKING_MINUTES) return false;
+  if (!isWithinBookingWindow(date, now) || start < workStart || end > workEnd || end - start < MIN_CUSTOM_BOOKING_MINUTES) return false;
   const vietnamNow = vietnamDateTimeParts(now);
   if (date === todayKey(now) && start <= vietnamNow.hour * 60 + vietnamNow.minute) return false;
   if (activeBookingRanges(date, bookings).length >= MAX_BOOKINGS_PER_DAY) return false;

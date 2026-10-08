@@ -12,6 +12,7 @@ import type {
   Service,
   ServiceAddon,
 } from '@/types';
+import { getReviewPageCursor } from '../reviewPagination';
 
 /**
  * Public reads intentionally use an anonymous, server-side Supabase client.
@@ -374,8 +375,7 @@ async function queryReviewPage(cursor?: PublicReviewCursor | null, limit = PUBLI
     const { data, error } = await query;
     if (!error && data) {
       const reviews = await enrichReviewRows(client, data as unknown as ReviewRow[]);
-      const last = data[data.length - 1];
-      return { reviews, nextCursor: data.length === safeLimit ? { created_at: String(last.created_at), id: String(last.id) } : null };
+      return { reviews, nextCursor: getReviewPageCursor(data as Array<{ created_at: string; id: string }>, safeLimit) };
     }
   } catch {
     // Fall through to local fixtures in development.

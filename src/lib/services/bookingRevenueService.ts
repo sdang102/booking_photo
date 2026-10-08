@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { BookingStatus } from '@/types';
 import { TABLE_NAME } from './bookingShared';
 import type { BookingQueryOptions } from './bookingReadService';
+import { normalizeRevenueDateRange } from '../revenueRange';
 
 export interface BookingRevenueSummary {
   total: number;
@@ -27,13 +28,14 @@ export interface BookingFinancialRecord {
 }
 
 export async function getBookingFinancialRecords({ limit = 50, offset = 0, statuses, fromDate, toDate }: BookingQueryOptions = {}): Promise<BookingFinancialRecord[]> {
+  const dateRange = normalizeRevenueDateRange(fromDate, toDate);
   let query = createClient()
     .from(TABLE_NAME)
     .select('id,shoot_date,service_name_snapshot,total_price,payment_status,status')
     .order('shoot_date', { ascending: false });
   if (statuses?.length) query = query.in('status', statuses);
-  if (fromDate) query = query.gte('shoot_date', fromDate);
-  if (toDate) query = query.lte('shoot_date', toDate);
+  if (dateRange.fromDate) query = query.gte('shoot_date', dateRange.fromDate);
+  if (dateRange.toDate) query = query.lte('shoot_date', dateRange.toDate);
   const { data, error } = await query.range(offset, offset + limit - 1);
   if (error || !data) throw new Error('Không thể tải danh sách doanh thu.');
   return data.map((row) => ({
@@ -47,10 +49,11 @@ export async function getBookingFinancialRecords({ limit = 50, offset = 0, statu
 }
 
 export async function getBookingRevenueSummary(filters: BookingRevenueFilters = {}): Promise<BookingRevenueSummary> {
+  const dateRange = normalizeRevenueDateRange(filters.fromDate, filters.toDate);
   const { data, error } = await createClient().rpc('get_admin_booking_revenue_summary', {
     target_status: filters.status && filters.status !== 'all' ? filters.status : null,
-    target_from: filters.fromDate ?? null,
-    target_to: filters.toDate ?? null,
+    target_from: dateRange.fromDate ?? null,
+    target_to: dateRange.toDate ?? null,
   });
   const row = Array.isArray(data) ? data[0] : data;
   if (error || !row) throw new Error('Không thể tải tổng hợp doanh thu.');
