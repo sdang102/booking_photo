@@ -10,39 +10,68 @@ import { formatVND } from '@/components/ServiceCard';
 import BookingStatusBadge, { BOOKING_STATUS_LABEL } from '@/components/photographer/BookingStatusBadge';
 import { usePhotographerBookings } from '@/lib/context/PhotographerBookingsContext';
 
-export default function BookingDetail({params}:{params:Promise<{id:string}>}){
-  const {id}=use(params);
-  const {items,isLoading,updateBooking}=usePhotographerBookings();
-  const sharedItem=items.find((booking)=>booking.id===id);
-  const [fetchedItem,setFetchedItem]=useState<BookingPhotoRecord|null>();
-  const [draftNote,setDraftNote]=useState<string|null>(null);
-  const [message,setMessage]=useState('');
-  const [actionBusy,setActionBusy]=useState(false);
-  useEffect(()=>{
-    if(sharedItem||isLoading)return;
-    let active=true;
-    getBookingById(id).then((value)=>{if(active)setFetchedItem(value)});
-    return()=>{active=false};
-  },[id,isLoading,sharedItem]);
-  const item=sharedItem??fetchedItem;
-  if(item===undefined)return <p>Đang tải booking…</p>;
-  if(!item)return <div><h1 className="text-2xl font-black">Không tìm thấy booking hoặc lịch này không được giao cho bạn</h1><Link href="/photographer/bookings" className="mt-4 inline-block text-sky-700">Quay lại</Link></div>;
-  const note=draftNote??item.photographer_note??'';
-  const next=NEXT_BOOKING_STATUS[item.status];
-  const changeStatus=async(nextStatus:BookingPhotoRecord['status'])=>{
-    if(actionBusy)return;
-    const previous=item;const updated={...item,status:nextStatus};
-    setActionBusy(true);setFetchedItem(updated);updateBooking(updated);
-    const ok=await updateBookingStatus(item.id,nextStatus);
-    if(ok)window.dispatchEvent(new Event('booking-status-changed'));
-    else{setFetchedItem(previous);updateBooking(previous);setMessage('Không thể cập nhật trạng thái. Dữ liệu đã được khôi phục.')}
+export default function BookingDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const { items, isLoading, updateBooking } = usePhotographerBookings();
+  const sharedItem = items.find((booking) => booking.id === id);
+  const [fetchedItem, setFetchedItem] = useState<BookingPhotoRecord | null>();
+  const [draftNote, setDraftNote] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+  const [actionBusy, setActionBusy] = useState(false);
+  const [noteBusy, setNoteBusy] = useState(false);
+
+  useEffect(() => {
+    if (sharedItem || isLoading) return;
+    let active = true;
+    getBookingById(id).then((value) => { if (active) setFetchedItem(value); });
+    return () => { active = false; };
+  }, [id, isLoading, sharedItem]);
+
+  const item = sharedItem ?? fetchedItem;
+  if (item === undefined) return <p>Đang tải booking…</p>;
+  if (!item) return <div><h1 className="text-2xl font-black">Không tìm thấy booking hoặc lịch này không được giao cho bạn</h1><Link href="/photographer/bookings" className="mt-4 inline-block text-sky-700">Quay lại</Link></div>;
+
+  const note = draftNote ?? item.photographer_note ?? '';
+  const next = NEXT_BOOKING_STATUS[item.status];
+  const changeStatus = async (nextStatus: BookingPhotoRecord['status']) => {
+    if (actionBusy) return;
+    const previous = item;
+    const updated = { ...item, status: nextStatus };
+    setActionBusy(true); setFetchedItem(updated); updateBooking(updated);
+    const ok = await updateBookingStatus(item.id, nextStatus);
+    if (ok) window.dispatchEvent(new Event('booking-status-changed'));
+    else { setFetchedItem(previous); updateBooking(previous); setMessage('Không thể cập nhật trạng thái. Dữ liệu đã được khôi phục.'); }
     setActionBusy(false);
   };
-  const advance=async()=>{if(next)await changeStatus(next)};
-  const cancel=async()=>{if(!confirm('Bạn chắc chắn muốn hủy booking này?'))return;await changeStatus('cancelled')};
-  const saveNote=async()=>setMessage(await updatePhotographerNote(item.id,note)?'Đã lưu ghi chú nội bộ.':'Không thể lưu ghi chú.');
-  const phone=item.customer_phone.replace(/\D/g,'');
-  return <><Link href="/photographer/bookings" className="flex items-center gap-2 text-sm font-bold text-sky-800"><ArrowLeft className="h-4 w-4"/>Booking</Link><div className="mt-5 flex items-start justify-between gap-3"><div><p className="section-kicker">Chi tiết buổi chụp</p><h1 className="mt-2 text-3xl font-black">{item.customer_name}</h1></div><BookingStatusBadge status={item.status}/></div><div className="mt-7 grid gap-4 md:grid-cols-2"><Info title="Khách hàng"><Row label="Tên" value={item.customer_name}/><Row label="Số điện thoại" value={item.customer_phone}/><div className="mt-4 grid grid-cols-2 gap-2"><a href={`tel:${phone}`} className="sky-button flex min-h-12 items-center justify-center gap-2 rounded-xl text-sm"><Phone className="h-4 w-4"/>Gọi</a><a href={`https://zalo.me/${phone}`} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-sky-300 text-sm font-bold text-sky-800"><MessageCircle className="h-4 w-4"/>Zalo</a></div></Info><Info title="Buổi chụp"><Row label="Dịch vụ" value={item.service_title}/><Row label="Ngày" value={item.booking_date}/><Row label="Giờ" value={item.booking_time}/><Row label="Địa điểm" value={item.shoot_address||'Ngoại cảnh'}/><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.shoot_address||'Ho Chi Minh City')}`} target="_blank" rel="noreferrer" className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-xl border border-sky-300 font-bold text-sky-800"><MapPin className="h-4 w-4"/>Mở bản đồ</a></Info><Info title="Yêu cầu của khách"><p className="text-sm leading-7 text-slate-700">{item.notes||'Không có ghi chú đặc biệt.'}</p></Info><Info title="Thanh toán"><Row label="Tổng giá" value={formatVND(item.total_price)}/><Row label="Hình thức" value="Thanh toán toàn bộ tại nơi chụp"/></Info></div><section className="mt-4 rounded-2xl border border-sky-200 bg-white p-5"><h2 className="font-black">Ghi chú nội bộ của thợ chụp</h2><p className="mt-1 text-xs text-slate-500">Khách hàng không nhìn thấy nội dung này.</p><textarea value={note} onChange={event=>setDraftNote(event.target.value)} className="booking-input mt-4 min-h-28" placeholder="Moodboard, thiết bị cần chuẩn bị, lưu ý khi trao đổi…"/><button onClick={saveNote} className="mt-3 flex min-h-11 items-center gap-2 rounded-xl border border-sky-300 px-4 text-sm font-bold text-sky-800"><Save className="h-4 w-4"/>Lưu ghi chú</button>{message&&<p className="mt-2 text-xs text-slate-600">{message}</p>}</section>{next&&<button onClick={advance} className="sky-button mt-6 min-h-14 w-full rounded-2xl text-base">{next==='confirmed'?'Duyệt & xác nhận lịch':next==='checked_in'?'Khách Đã Đến':next==='shooting'?'Bắt Đầu Chụp':'Hoàn Thành Buổi Chụp'} → {BOOKING_STATUS_LABEL[next]}</button>}{['pending','confirmed'].includes(item.status)&&<button onClick={cancel} className="mt-3 min-h-12 w-full rounded-2xl border border-rose-200 bg-rose-50 text-sm font-bold text-rose-700">Hủy booking</button>}</>;
+  const advance = async () => { if (next) await changeStatus(next); };
+  const cancel = async () => { if (!confirm('Bạn chắc chắn muốn hủy booking này?')) return; await changeStatus('cancelled'); };
+  const saveNote = async () => {
+    if (noteBusy) return;
+    setNoteBusy(true); setMessage('');
+    try { setMessage(await updatePhotographerNote(item.id, note) ? 'Đã lưu ghi chú nội bộ.' : 'Không thể lưu ghi chú.'); }
+    finally { setNoteBusy(false); }
+  };
+  const phone = item.customer_phone.replace(/\D/g, '');
+
+  return <>
+    <Link href="/photographer/bookings" className="flex items-center gap-2 text-sm font-bold text-sky-800"><ArrowLeft className="h-4 w-4" />Booking</Link>
+    <div className="mt-5 flex items-start justify-between gap-3"><div><p className="section-kicker">Chi tiết buổi chụp</p><h1 className="mt-2 text-3xl font-black">{item.customer_name}</h1></div><BookingStatusBadge status={item.status} /></div>
+    <div className="mt-7 grid gap-4 md:grid-cols-2">
+      <Info title="Khách hàng"><Row label="Tên" value={item.customer_name} /><Row label="Số điện thoại" value={item.customer_phone} /><div className="mt-4 grid grid-cols-2 gap-2"><a href={`tel:${phone}`} className="sky-button flex min-h-12 items-center justify-center gap-2 rounded-xl text-sm"><Phone className="h-4 w-4" />Gọi</a><a href={`https://zalo.me/${phone}`} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-sky-300 text-sm font-bold text-sky-800"><MessageCircle className="h-4 w-4" />Zalo</a></div></Info>
+      <Info title="Buổi chụp"><Row label="Dịch vụ" value={item.service_title} /><Row label="Ngày" value={item.booking_date} /><Row label="Giờ" value={item.booking_time} /><Row label="Địa điểm" value={item.shoot_address || 'Ngoại cảnh'} /><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.shoot_address || 'Ho Chi Minh City')}`} target="_blank" rel="noreferrer" className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-xl border border-sky-300 font-bold text-sky-800"><MapPin className="h-4 w-4" />Mở bản đồ</a></Info>
+      <Info title="Yêu cầu của khách"><p className="text-sm leading-7 text-slate-700">{item.notes || 'Không có ghi chú đặc biệt.'}</p></Info>
+      <Info title="Thanh toán"><Row label="Tổng giá" value={formatVND(item.total_price)} /><Row label="Hình thức" value="Thanh toán toàn bộ tại nơi chụp" /></Info>
+    </div>
+    <section className="mt-4 rounded-2xl border border-sky-200 bg-white p-5" aria-busy={noteBusy}>
+      <h2 className="font-black">Ghi chú nội bộ của thợ chụp</h2><p className="mt-1 text-xs text-slate-500">Khách hàng không nhìn thấy nội dung này.</p>
+      <textarea value={note} disabled={noteBusy} onChange={(event) => setDraftNote(event.target.value)} className="booking-input mt-4 min-h-28" placeholder="Moodboard, thiết bị cần chuẩn bị, lưu ý khi trao đổi…" />
+      <button type="button" onClick={() => void saveNote()} disabled={noteBusy} className="mt-3 flex min-h-11 items-center gap-2 rounded-xl border border-sky-300 px-4 text-sm font-bold text-sky-800 disabled:cursor-wait disabled:opacity-60"><Save className="h-4 w-4" />{noteBusy ? 'Đang lưu…' : 'Lưu ghi chú'}</button>
+      {message && <p className="mt-2 text-xs text-slate-600" role="status">{message}</p>}
+    </section>
+    {next && <button type="button" disabled={actionBusy} onClick={() => void advance()} className="sky-button mt-6 min-h-14 w-full rounded-2xl text-base disabled:cursor-wait disabled:opacity-60">{next === 'confirmed' ? 'Duyệt & xác nhận lịch' : next === 'checked_in' ? 'Khách Đã Đến' : next === 'shooting' ? 'Bắt Đầu Chụp' : 'Hoàn Thành Buổi Chụp'} → {BOOKING_STATUS_LABEL[next]}</button>}
+    {['pending', 'confirmed'].includes(item.status) && <button type="button" disabled={actionBusy} onClick={() => void cancel()} className="mt-3 min-h-12 w-full rounded-2xl border border-rose-200 bg-rose-50 text-sm font-bold text-rose-700 disabled:cursor-wait disabled:opacity-60">Hủy booking</button>}
+  </>;
 }
-function Info({title,children}:{title:string;children:React.ReactNode}){return <section className="rounded-2xl border border-sky-200 bg-white p-5"><h2 className="mb-4 font-black">{title}</h2>{children}</section>}
-function Row({label,value}:{label:string;value:string}){return <div className="flex justify-between gap-4 border-b border-sky-100 py-2 text-sm"><span className="text-slate-500">{label}</span><strong className="text-right">{value}</strong></div>}
+
+function Info({ title, children }: { title: string; children: React.ReactNode }) { return <section className="rounded-2xl border border-sky-200 bg-white p-5"><h2 className="mb-4 font-black">{title}</h2>{children}</section>; }
+function Row({ label, value }: { label: string; value: string }) { return <div className="flex justify-between gap-4 border-b border-sky-100 py-2 text-sm"><span className="text-slate-500">{label}</span><strong className="text-right">{value}</strong></div>; }

@@ -29,14 +29,12 @@ export default function ReviewsPage({ initialPage, initialSummary }: { initialPa
   }, [reviews]);
   useEffect(() => {
     if (!selected) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setSelected(null); };
     const previous = { bodyOverflow: document.body.style.overflow, bodyTouchAction: document.body.style.touchAction, bodyOverscroll: document.body.style.overscrollBehavior, htmlOverflow: document.documentElement.style.overflow };
     document.body.style.overflow = 'hidden';
     document.body.style.touchAction = 'none';
     document.body.style.overscrollBehavior = 'none';
     document.documentElement.style.overflow = 'hidden';
-    document.addEventListener('keydown', close);
-    return () => { document.body.style.overflow = previous.bodyOverflow; document.body.style.touchAction = previous.bodyTouchAction; document.body.style.overscrollBehavior = previous.bodyOverscroll; document.documentElement.style.overflow = previous.htmlOverflow; document.removeEventListener('keydown', close); };
+    return () => { document.body.style.overflow = previous.bodyOverflow; document.body.style.touchAction = previous.bodyTouchAction; document.body.style.overscrollBehavior = previous.bodyOverscroll; document.documentElement.style.overflow = previous.htmlOverflow; };
   }, [selected]);
 
   const filtered = reviews.filter((review) => !rating || review.rating === rating);

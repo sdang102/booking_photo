@@ -1,5 +1,8 @@
+'use client';
+
 import { Check, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useDialogFocus } from '@/lib/hooks/useDialogFocus';
 
 const STEP_LABELS = ['Chọn lịch', 'Thông tin', 'Kiểm tra'];
 
@@ -26,8 +29,9 @@ export default function BookingModalShell({
   children: ReactNode;
   aside: ReactNode;
 }) {
+  const dialogRef = useDialogFocus<HTMLDivElement>(variant === 'modal', onClose);
   return <div className={variant === 'page' ? 'booking-page-embed' : 'booking-backdrop fixed inset-0 z-[220] flex items-end justify-center bg-slate-950/70 sm:items-center sm:p-4'} onMouseDown={(event) => variant === 'modal' && event.target === event.currentTarget && onClose()}>
-    <div className="booking-dialog auth-dialog flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl border border-sky-200 bg-elevated shadow-2xl sm:rounded-3xl">
+    <div ref={dialogRef} tabIndex={variant === 'modal' ? -1 : undefined} className="booking-dialog auth-dialog flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl border border-sky-200 bg-elevated shadow-2xl sm:rounded-3xl" role={variant === 'modal' ? 'dialog' : 'region'} aria-modal={variant === 'modal' ? true : undefined} aria-label="Đặt buổi chụp của bạn">
       <header className="booking-dialog__head flex items-start justify-between gap-4 border-b border-sky-200 p-4 sm:px-7 sm:py-5">
         <div><span className="section-kicker">Đặt lịch trực tuyến · Chỉ khoảng 2 phút</span><h2 className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">Đặt buổi chụp của bạn</h2></div>
         <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100" aria-label="Đóng cửa sổ đặt lịch"><X className="h-5 w-5" /></button>

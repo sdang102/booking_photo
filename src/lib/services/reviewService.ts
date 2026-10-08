@@ -108,12 +108,14 @@ export async function getReviews(options: { publicOnly?: boolean; featuredFirst?
   return options.limit ? reviews.slice(options.offset ?? 0, (options.offset ?? 0) + options.limit) : reviews;
 }
 
-export async function getPhotographerReviews(): Promise<ExperienceReview[]> {
+export async function getPhotographerReviews(options: { limit?: number; offset?: number } = {}): Promise<ExperienceReview[]> {
   const supabase=createClient();
   const {data:{user},error:authError}=await supabase.auth.getUser();
   if(authError){reportError(authError,{area:'review',operation:'authenticate-photographer'});throw new Error('Không thể xác thực tài khoản thợ chụp.');}
   if(!user)throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-  const {data,error}=await supabase.from('reviews').select('id,booking_id,user_id,rating,comment,is_public,is_featured,created_at,updated_at,bookings!inner(customer_name,service_name_snapshot,photographer_id),portfolio_albums(slug)').eq('bookings.photographer_id',user.id).order('created_at',{ascending:false}).limit(100);
+  const limit = options.limit ?? 25;
+  const offset = options.offset ?? 0;
+  const {data,error}=await supabase.from('reviews').select('id,booking_id,user_id,rating,comment,is_public,is_featured,created_at,updated_at,bookings!inner(customer_name,service_name_snapshot,photographer_id),portfolio_albums(slug)').eq('bookings.photographer_id',user.id).order('created_at',{ascending:false}).range(offset,offset+limit-1);
   if(error){
     reportError(error,{area:'review',operation:'read-photographer'});
     throw new Error(adminErrorMessage(error,'Không thể tải đánh giá của thợ chụp.'));

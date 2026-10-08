@@ -11,6 +11,7 @@ import { DEFAULT_AVATAR_URL } from '@/lib/avatar';
 import { useAuth } from '@/lib/context/AuthContext';
 import { getUserBookings } from '@/lib/services/bookingService';
 import LogoutButton from '@/components/LogoutButton';
+import { useDialogFocus } from '@/lib/hooks/useDialogFocus';
 
 export default function Profile() {
   const { user, updateProfile, updateAvatar, changePassword } = useAuth();
@@ -67,6 +68,7 @@ export default function Profile() {
     if (crop) URL.revokeObjectURL(crop.url);
     setCrop(null);
   };
+  const cropDialogRef = useDialogFocus<HTMLElement>(Boolean(crop), cancelCrop);
 
   const applyAvatarCrop = async () => {
     if (!crop || avatarBusy) return;
@@ -145,18 +147,18 @@ export default function Profile() {
         </div>
 
         <div className="profile-section-tabs mt-7" role="tablist" aria-label="Mục quản lý tài khoản">
-          <button type="button" className={section === 'personal' ? 'is-active' : ''} onClick={() => setSection('personal')}>Thông tin cá nhân</button>
-          <button type="button" className={section === 'security' ? 'is-active' : ''} onClick={() => setSection('security')}>Bảo mật</button>
-          <button type="button" className={section === 'bookings' ? 'is-active' : ''} onClick={() => setSection('bookings')}>Lịch đã đặt</button>
+          <button id="profile-tab-personal" role="tab" aria-selected={section === 'personal'} aria-controls="profile-panel-personal" tabIndex={section === 'personal' ? 0 : -1} type="button" className={section === 'personal' ? 'is-active' : ''} onClick={() => setSection('personal')}>Thông tin cá nhân</button>
+          <button id="profile-tab-security" role="tab" aria-selected={section === 'security'} aria-controls="profile-panel-security" tabIndex={section === 'security' ? 0 : -1} type="button" className={section === 'security' ? 'is-active' : ''} onClick={() => setSection('security')}>Bảo mật</button>
+          <button id="profile-tab-bookings" role="tab" aria-selected={section === 'bookings'} aria-controls="profile-panel-bookings" tabIndex={section === 'bookings' ? 0 : -1} type="button" className={section === 'bookings' ? 'is-active' : ''} onClick={() => setSection('bookings')}>Lịch đã đặt</button>
         </div>
 
-        {section === 'bookings' && <Link href="/my-bookings" className="relative mt-5 flex items-center gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 transition hover:-translate-y-0.5 hover:shadow-lg">
+        {section === 'bookings' && <Link id="profile-panel-bookings" role="tabpanel" aria-labelledby="profile-tab-bookings" href="/my-bookings" className="relative mt-5 flex items-center gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 transition hover:-translate-y-0.5 hover:shadow-lg">
           <span className="booking-notification-pulse grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand text-brand-contrast"><CalendarCheck2 className="h-5 w-5" /></span>
           <span><strong className="block">Lịch đã đặt & trạng thái đơn</strong><span className="mt-1 block text-xs text-red-700">Theo dõi tiến trình booking của bạn.</span></span>
           {activeBookings > 0 && <span className="absolute -right-2 -top-2 grid h-6 min-w-6 place-items-center rounded-full bg-brand px-1 text-[10px] font-black text-brand-contrast ring-2 ring-elevated">{activeBookings > 9 ? '9+' : activeBookings}<span className="sr-only"> lịch đang hoạt động</span></span>}
         </Link>}
 
-        {section === 'personal' && <form onSubmit={save} className="mt-5 space-y-4">
+        {section === 'personal' && <form id="profile-panel-personal" role="tabpanel" aria-labelledby="profile-tab-personal" onSubmit={save} className="mt-5 space-y-4">
           {message && <p role="status" className={`rounded-xl border p-3 text-sm ${message.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>{message.text}</p>}
           <ProfileField label="Họ và tên" icon={<UserRound />}><input required name="fullName" defaultValue={user?.full_name || ''} autoComplete="name" className="booking-input booking-input-icon" /></ProfileField>
           <ProfileField label="Email đăng nhập (không thể thay đổi)" icon={<Mail />}><input readOnly name="email" type="email" value={user?.email || ''} autoComplete="email" className="booking-input booking-input-icon profile-readonly" /></ProfileField>
@@ -165,7 +167,7 @@ export default function Profile() {
           <button type="submit" disabled={saving} className="sky-button flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-5 font-bold disabled:cursor-wait disabled:opacity-60"><Save className="h-4 w-4" />{saving ? 'Đang lưu...' : 'Lưu thay đổi'}</button>
         </form>}
 
-        {section === 'security' && <form onSubmit={savePassword} className="mt-5 space-y-4 border-t border-sky-200 pt-6">
+        {section === 'security' && <form id="profile-panel-security" role="tabpanel" aria-labelledby="profile-tab-security" onSubmit={savePassword} className="mt-5 space-y-4 border-t border-sky-200 pt-6">
           <div><h2 className="flex items-center gap-2 text-lg font-black"><KeyRound className="h-5 w-5 text-sky-600" />Đổi mật khẩu</h2><p className="mt-1 text-xs text-slate-500">Nhập mật khẩu hiện tại và mật khẩu mới tối thiểu 8 ký tự.</p></div>
           {passwordMessage && <p role="status" className={`rounded-xl border p-3 text-sm ${passwordMessage.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>{passwordMessage.text}</p>}
           <input required name="currentPassword" type="password" minLength={8} autoComplete="current-password" placeholder="Mật khẩu hiện tại" className="booking-input" />
@@ -182,7 +184,15 @@ export default function Profile() {
           </div>
         </div>
       </section>
-      {crop && <div className="avatar-crop-backdrop" role="presentation"><section className="avatar-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-crop-title"><h2 id="avatar-crop-title">Cắt ảnh đại diện</h2><div className="avatar-crop-preview" onPointerDown={startCropDrag} onPointerMove={moveCropDrag} onPointerUp={stopCropDrag} onPointerCancel={stopCropDrag}><img src={crop.url} alt="Xem trước ảnh đại diện" width="512" height="512" decoding="async" style={{ transform: `translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})` }} /></div><p className="avatar-crop-hint">Kéo ảnh để căn trái, phải, lên hoặc xuống.</p><label className="avatar-crop-zoom">Thu phóng <input type="range" min="1" max="2.5" step=".05" value={cropZoom} onChange={(event) => setCropZoom(Number(event.target.value))} /></label><div className="avatar-crop-actions"><button type="button" onClick={cancelCrop}>Hủy</button><button type="button" onClick={() => { void applyAvatarCrop(); }} disabled={avatarBusy}>{avatarBusy ? 'Đang lưu...' : 'Dùng ảnh này'}</button></div></section></div>}
+      {crop && <div className="avatar-crop-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && cancelCrop()}>
+        <section ref={cropDialogRef} tabIndex={-1} className="avatar-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-crop-title">
+          <h2 id="avatar-crop-title">Cắt ảnh đại diện</h2>
+          <div className="avatar-crop-preview" onPointerDown={startCropDrag} onPointerMove={moveCropDrag} onPointerUp={stopCropDrag} onPointerCancel={stopCropDrag}><img src={crop.url} alt="Xem trước ảnh đại diện" width="512" height="512" decoding="async" style={{ transform: `translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})` }} /></div>
+          <p className="avatar-crop-hint">Kéo ảnh để căn trái, phải, lên hoặc xuống.</p>
+          <label className="avatar-crop-zoom">Thu phóng <input type="range" min="1" max="2.5" step=".05" value={cropZoom} onChange={(event) => setCropZoom(Number(event.target.value))} /></label>
+          <div className="avatar-crop-actions"><button type="button" onClick={cancelCrop}>Hủy</button><button type="button" onClick={() => { void applyAvatarCrop(); }} disabled={avatarBusy}>{avatarBusy ? 'Đang lưu...' : 'Dùng ảnh này'}</button></div>
+        </section>
+      </div>}
     </main>
   </RoleGuard>;
 }
