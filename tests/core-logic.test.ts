@@ -75,6 +75,7 @@ describe('admin account validation', () => {
     const result = validateAccountInput({ email: ' ADMIN@Example.com ', fullName: ' Admin Photo ', phone: '+84 912-345-678', password: 'password1', roles: ['admin', 'photographer', 'bad'] }, true);
     expect(result.data).toEqual({ email: 'admin@example.com', fullName: 'Admin Photo', phone: '0912345678', password: 'password1', roles: ['admin', 'photographer'] });
     expect(validateAccountInput({ email: 'a@example.com', fullName: 'Admin', phone: '', roles: [] }, false).error).toContain('vai trò');
+    expect(validateAccountInput({ email: 'a@example.com', fullName: 'Admin', phone: '', roles: ['admin'] }, false).error).toContain('bắt buộc');
   });
 
   it('detects only bans that are still active', () => {

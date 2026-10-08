@@ -49,11 +49,12 @@ export function validateAccountInput(value: unknown, creating: boolean):
   if (!EMAIL_PATTERN.test(email) || email.length > 254) return { error: 'Email không hợp lệ.' };
   if (fullName.length < 2 || fullName.length > 100) return { error: 'Họ tên phải có từ 2 đến 100 ký tự.' };
   if (!roles.length) return { error: 'Tài khoản phải có ít nhất một vai trò.' };
-  const phone = phoneInput ? normalizeVietnameseMobile(phoneInput) : '';
-  if (phoneInput && !phone) return { error: 'Số điện thoại di động Việt Nam không hợp lệ.' };
+  if (!phoneInput) return { error: 'Số điện thoại là bắt buộc.' };
+  const phone = normalizeVietnameseMobile(phoneInput);
+  if (!phone) return { error: 'Số điện thoại di động Việt Nam không hợp lệ.' };
   if (creating && (!password || password.length < 8)) return { error: 'Mật khẩu tạm thời phải có ít nhất 8 ký tự.' };
 
-  return { data: { email, fullName, phone: phone || '', roles, ...(creating ? { password } : {}) } };
+  return { data: { email, fullName, phone, roles, ...(creating ? { password } : {}) } };
 }
 
 export function isAccountDisabled(bannedUntil: string | null | undefined, now = Date.now()): boolean {
