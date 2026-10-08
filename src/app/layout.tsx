@@ -3,6 +3,8 @@ import { Plus_Jakarta_Sans, Playfair_Display } from "next/font/google";
 import type { Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/context/AuthContext";
+import { getPublicSiteSettings } from "@/lib/services/siteSettingsService";
+import { getSiteUrl } from "@/lib/siteMetadata";
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-sans",
@@ -14,10 +16,25 @@ const playfair = Playfair_Display({
   subsets: ["latin", "vietnamese"],
 });
 
-export const metadata: Metadata = {
-  title: "FIN PHOTO | Editorial Photography Sài Gòn",
-  description: "FIN PHOTO — chân dung, couple, pre-wedding và editorial photography được kể bằng ánh sáng và cảm xúc.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getPublicSiteSettings();
+  return {
+    metadataBase: getSiteUrl(),
+    title: {
+      default: settings.seoTitle,
+      template: `%s | ${settings.websiteName}`,
+    },
+    description: settings.seoDescription,
+    openGraph: {
+      type: "website",
+      locale: "vi_VN",
+      siteName: settings.websiteName,
+      title: settings.seoTitle,
+      description: settings.seoDescription,
+      images: [{ url: settings.ogImageUrl, alt: settings.websiteName }],
+    },
+  };
+}
 
 const themeScript = `document.documentElement.dataset.theme='dark';document.documentElement.style.colorScheme='dark'`;
 

@@ -27,7 +27,7 @@ export default function PhotographerShell({children}:{children:React.ReactNode})
 function PhotographerWorkspace({children}:{children:React.ReactNode}){
   const path=usePathname();
   const {user}=useAuth();
-  const {items}=usePhotographerBookings();
+  const {items,isLoading,error,refresh}=usePhotographerBookings();
   const pending=items.filter((item)=>item.status==='pending');
   const pendingNotice={count:pending.length,key:pending.map((item)=>item.id).sort().join('|')};
   const current=NAV.find(({href})=>href==='/photographer'?path===href:path.startsWith(href))??NAV[0];
@@ -59,7 +59,7 @@ function PhotographerWorkspace({children}:{children:React.ReactNode}){
           <nav className="workspace-nav workspace-nav--account" aria-label="Tài khoản"><Link href="/profile"><span className="workspace-nav__icon"><UserRound/></span><span>Hồ sơ của tôi</span></Link></nav>
           <div className="workspace-sidebar__foot"><span>FIN PHOTO</span><p>Editorial photography</p></div>
         </aside>
-        <main className="workspace-main">{children}</main>
+        <main className="workspace-main">{error&&<div role="alert" className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><p>{error}</p><button type="button" onClick={()=>void refresh()} className="mt-2 font-bold underline">Thử lại</button></div>}{isLoading&&!items.length?<div className="rounded-2xl border border-sky-200 bg-white p-8 text-center text-sm text-slate-600">Đang tải dữ liệu booking…</div>:children}</main>
       </div>
       <nav className="workspace-bottom-nav" aria-label="Điều hướng thợ chụp trên di động">{navigation(true)}<Link href="/profile"><span className="workspace-nav__icon"><UserRound/></span><span>Tôi</span></Link></nav>
       {!path.startsWith('/photographer/bookings')&&<BookingAlertToast key={pendingNotice.key} count={pendingNotice.count} title={`Có ${pendingNotice.count} booking mới chờ duyệt`} message="Nhấn để mở danh sách booking và xác nhận lịch cho khách." href="/photographer/bookings"/>}

@@ -14,6 +14,8 @@ import BookingStatusBadge from '@/components/photographer/BookingStatusBadge';
 interface MyBookingsModalProps {
   isOpen: boolean;
   isLoading?: boolean;
+  error?: string;
+  onRetry?: () => void;
   onClose: () => void;
   bookings: BookingPhotoRecord[];
   onNewBooking: () => void;
@@ -23,6 +25,8 @@ interface MyBookingsModalProps {
 export default function MyBookingsModal({
   isOpen,
   isLoading = false,
+  error = '',
+  onRetry,
   onClose,
   bookings,
   onNewBooking,
@@ -31,23 +35,31 @@ export default function MyBookingsModal({
   const { user } = useAuth();
   const [reviews, setReviews] = useState<ExperienceReview[]>([]);
   const [reviewsLoaded, setReviewsLoaded] = useState(false);
+  const [reviewsError, setReviewsError] = useState('');
+  const [reviewsRetryKey, setReviewsRetryKey] = useState(0);
   const [submittedReviewIds, setSubmittedReviewIds] = useState<string[]>([]);
   const [reviewBooking, setReviewBooking] = useState<BookingPhotoRecord | null>(null);
   useEffect(() => {
     if (!isOpen || !user) {
       setReviews([]);
+      setReviewsError('');
       setReviewsLoaded(Boolean(isOpen && !user));
       return;
     }
     const ownedBookingIds = bookings.filter((booking) => booking.user_id === user.id || booking.customer_email.toLowerCase() === user.email.toLowerCase()).map((booking) => booking.id);
     if (!ownedBookingIds.length) {
       setReviews([]);
+      setReviewsError('');
       setReviewsLoaded(true);
       return;
     }
     setReviewsLoaded(false);
-    void getReviews({ bookingIds: ownedBookingIds, publicOnly: true }).then((items) => { setReviews(items); setReviewsLoaded(true); });
-  }, [bookings, isOpen, user]);
+    setReviewsError('');
+    void getReviews({ bookingIds: ownedBookingIds })
+      .then((items) => setReviews(items))
+      .catch(() => setReviewsError('Không thể kiểm tra trạng thái đánh giá. Vui lòng thử lại.'))
+      .finally(() => setReviewsLoaded(true));
+  }, [bookings, isOpen, reviewsRetryKey, user]);
   useEffect(() => {
     if (!isOpen) return;
     const body = document.body;
@@ -78,10 +90,7 @@ export default function MyBookingsModal({
           b.user_id === user.id ||
           b.customer_email.toLowerCase() === user.email.toLowerCase()
         )
-    : []).filter((booking) =>
-      booking.status !== 'cancelled' &&
-      (booking.status !== 'completed' || (reviewsLoaded && !reviews.some((review) => review.booking_id === booking.id) && !submittedReviewIds.includes(booking.id)))
-    );
+    : []).filter((booking) => booking.status !== 'cancelled');
 
   return (
     <div className="my-bookings-backdrop fixed inset-0 z-[210] flex items-center justify-center p-3 sm:p-6 bg-slate-950/60 backdrop-blur-md overflow-y-auto">
@@ -126,7 +135,9 @@ export default function MyBookingsModal({
 
         {/* Body */}
         <div className="p-5 sm:p-6 flex-1 overflow-y-auto space-y-4">
-          {isLoading ? (
+          {error ? (
+            <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-center text-sm text-rose-800"><p>{error}</p>{onRetry && <button type="button" onClick={onRetry} className="mt-2 font-bold underline">Thử lại</button>}</div>
+          ) : isLoading ? (
             <div className="py-12 text-center text-sm text-slate-600">Đang tải lịch của bạn…</div>
           ) : userBookings.length === 0 ? (
             <div className="text-center py-12">
@@ -195,7 +206,11 @@ export default function MyBookingsModal({
                     </div>
                   )}
                   {booking.status === 'completed' && (
-                    reviews.some((review) => review.booking_id === booking.id) || submittedReviewIds.includes(booking.id) ? (
+                    !reviewsLoaded ? (
+                      <p className="border-t border-sky-100 pt-3 text-xs text-slate-500">Đang kiểm tra trạng thái đánh giá…</p>
+                    ) : reviewsError ? (
+                      <div role="alert" className="border-t border-sky-100 pt-3 text-xs text-rose-700"><span>{reviewsError}</span><button type="button" onClick={() => setReviewsRetryKey((value) => value + 1)} className="ml-2 font-bold underline">Thử lại</button></div>
+                    ) : reviews.some((review) => review.booking_id === booking.id) || submittedReviewIds.includes(booking.id) ? (
                       <div className="flex items-center justify-between border-t border-sky-100 pt-3 text-xs"><span className="font-semibold text-emerald-700">✓ Bạn đã đánh giá</span><a href="/reviews" className="font-bold text-sky-700">Xem đánh giá</a></div>
                     ) : (
                       <button onClick={() => setReviewBooking(booking)} className="w-full rounded-xl border border-sky-300 px-4 py-2.5 text-xs font-bold text-sky-700">Đánh Giá Trải Nghiệm</button>
@@ -226,7 +241,7 @@ export default function MyBookingsModal({
         </div>
 
       </div>
-      {reviewBooking && <ReviewForm booking={reviewBooking} userId={user?.id} onClose={() => setReviewBooking(null)} onSuccess={() => { const bookingId = reviewBooking.id; setReviewBooking(null); setSubmittedReviewIds((current) => current.includes(bookingId) ? current : [...current, bookingId]); void getReviews({ bookingIds: [bookingId], publicOnly: true }).then((items) => { setReviews((current) => [...current.filter((review) => review.booking_id !== bookingId), ...items]); setReviewsLoaded(true); }); }} />}
+      {reviewBooking && <ReviewForm booking={reviewBooking} userId={user?.id} onClose={() => setReviewBooking(null)} onSuccess={() => { const bookingId = reviewBooking.id; setReviewBooking(null); setSubmittedReviewIds((current) => current.includes(bookingId) ? current : [...current, bookingId]); void getReviews({ bookingIds: [bookingId] }).then((items) => { setReviews((current) => [...current.filter((review) => review.booking_id !== bookingId), ...items]); setReviewsError(''); setReviewsLoaded(true); }).catch(() => { setReviewsError('Đã gửi đánh giá nhưng chưa thể tải lại trạng thái.'); setReviewsLoaded(true); }); }} />}
     </div>
   );
 }

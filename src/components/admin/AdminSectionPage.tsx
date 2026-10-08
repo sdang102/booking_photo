@@ -28,7 +28,9 @@ export default function AdminSectionPage({ params }: { params: Promise<{ section
   const [status, setStatus] = useState<BookingStatus | 'all'>('all');
   const [period, setPeriod] = useState<RevenuePeriod>('all');
   const [dateValue, setDateValue] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const [loading, setLoading] = useState(section === 'revenue');
+  const [error, setError] = useState('');
 
   const filters = useMemo<BookingRevenueFilters>(() => {
     const range = getDateRange(period, dateValue);
@@ -47,21 +49,24 @@ export default function AdminSectionPage({ params }: { params: Promise<{ section
       setSummary(nextSummary);
       setBookings(records);
       setHasMore(records.length === PAGE_SIZE);
-    }).finally(() => { if (active) setLoading(false); });
+    }).catch(() => { if (active) setError('Không thể tải báo cáo doanh thu. Vui lòng thử lại.'); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [filters, section]);
+  }, [filters, retryKey, section]);
 
   const loadMore = async () => {
     const statuses = filters.status && filters.status !== 'all' ? [filters.status] : undefined;
-    const records = await getBookingFinancialRecords({ limit: PAGE_SIZE, offset: bookings.length, statuses, fromDate: filters.fromDate, toDate: filters.toDate });
-    setBookings((current) => [...current, ...records]);
-    setHasMore(records.length === PAGE_SIZE);
+    setError('');
+    try {
+      const records = await getBookingFinancialRecords({ limit: PAGE_SIZE, offset: bookings.length, statuses, fromDate: filters.fromDate, toDate: filters.toDate });
+      setBookings((current) => [...current, ...records]);
+      setHasMore(records.length === PAGE_SIZE);
+    } catch { setError('Không thể tải thêm dữ liệu doanh thu. Vui lòng thử lại.'); }
   };
 
-  const changeStatus = (value: BookingStatus | 'all') => { setLoading(true); setStatus(value); };
-  const changePeriod = (next: RevenuePeriod) => { setLoading(true); setPeriod(next); setDateValue(next === 'day' ? new Date().toISOString().slice(0, 10) : next === 'month' ? new Date().toISOString().slice(0, 7) : next === 'year' ? new Date().getFullYear().toString() : ''); };
-  const changeDate = (value: string) => { setLoading(true); setDateValue(value); };
-  return <><p className="section-kicker">Admin</p><h1 className="mt-2 text-3xl font-black">{titles[section] || 'Quản trị'}</h1><div className="mt-7"><SectionContent section={section} bookings={bookings} summary={summary} hasMore={hasMore} loading={loading} status={status} period={period} dateValue={dateValue} onStatusChange={changeStatus} onPeriodChange={changePeriod} onDateChange={changeDate} onLoadMore={() => void loadMore()} /></div></>;
+  const changeStatus = (value: BookingStatus | 'all') => { setLoading(true); setError(''); setStatus(value); };
+  const changePeriod = (next: RevenuePeriod) => { setLoading(true); setError(''); setPeriod(next); setDateValue(next === 'day' ? new Date().toISOString().slice(0, 10) : next === 'month' ? new Date().toISOString().slice(0, 7) : next === 'year' ? new Date().getFullYear().toString() : ''); };
+  const changeDate = (value: string) => { setLoading(true); setError(''); setDateValue(value); };
+  return <><p className="section-kicker">Admin</p><h1 className="mt-2 text-3xl font-black">{titles[section] || 'Quản trị'}</h1>{error&&<div role="alert" className="mt-5 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800"><p>{error}</p><button type="button" onClick={()=>{setLoading(true);setError('');setRetryKey((value)=>value+1)}} className="mt-2 font-bold underline">Thử lại</button></div>}<div className="mt-7"><SectionContent section={section} bookings={bookings} summary={summary} hasMore={hasMore} loading={loading} status={status} period={period} dateValue={dateValue} onStatusChange={changeStatus} onPeriodChange={changePeriod} onDateChange={changeDate} onLoadMore={() => void loadMore()} /></div></>;
 }
 
 function SectionContent({ section, bookings, summary, hasMore, loading, status, period, dateValue, onStatusChange, onPeriodChange, onDateChange, onLoadMore }: { section: string; bookings: BookingFinancialRecord[]; summary: BookingRevenueSummary; hasMore: boolean; loading: boolean; status: BookingStatus | 'all'; period: RevenuePeriod; dateValue: string; onStatusChange: (value: BookingStatus | 'all') => void; onPeriodChange: (value: RevenuePeriod) => void; onDateChange: (value: string) => void; onLoadMore: () => void }) {

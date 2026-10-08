@@ -169,7 +169,7 @@ export default function Profile() {
           <input required name="currentPassword" type="password" minLength={8} autoComplete="current-password" placeholder="Mật khẩu hiện tại" className="booking-input" />
           <input required name="newPassword" type="password" minLength={8} autoComplete="new-password" placeholder="Mật khẩu mới" className="booking-input" />
           <input required name="confirmPassword" type="password" minLength={8} autoComplete="new-password" placeholder="Nhập lại mật khẩu mới" className="booking-input" />
-          <div className="flex items-center justify-between gap-3"><button type="button" disabled className="text-xs font-semibold text-slate-400">Quên mật khẩu? (sắp có)</button><button type="submit" disabled={passwordBusy} className="sky-button flex min-h-11 items-center gap-2 rounded-xl px-4 font-bold disabled:opacity-60"><KeyRound className="h-4 w-4" />{passwordBusy ? 'Đang đổi...' : 'Đổi mật khẩu'}</button></div>
+          <div className="flex items-center justify-between gap-3"><Link href="/forgot-password" className="text-xs font-semibold text-sky-700 underline-offset-4 hover:underline">Quên mật khẩu?</Link><button type="submit" disabled={passwordBusy} className="sky-button flex min-h-11 items-center gap-2 rounded-xl px-4 font-bold disabled:opacity-60"><KeyRound className="h-4 w-4" />{passwordBusy ? 'Đang đổi...' : 'Đổi mật khẩu'}</button></div>
         </form>}
 
         <div className="mt-7 space-y-3">

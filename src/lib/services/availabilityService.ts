@@ -7,11 +7,20 @@ import {
   isDevelopment,
 } from './bookingShared';
 
+export async function hasOperationalPhotographer(): Promise<boolean> {
+  const { data, error } = await createClient().rpc('has_operational_photographer');
+  if (error) throw new Error('Không thể kiểm tra trạng thái vận hành lúc này.');
+  return data === true;
+}
+
 export async function getAvailabilityBlocks(): Promise<AvailabilityBlock[]> {
+  let failure: unknown;
   try {
     const { data, error } = await createClient().rpc('get_public_availability');
     if (!error && data) return data as AvailabilityBlock[];
-  } catch { /* Development fallback. */ }
+    failure = error;
+  } catch (error) { failure = error; }
+  if (!isDevelopment) throw new Error(failure instanceof Error ? failure.message : 'Không thể tải lịch nghỉ của thợ chụp.');
   return getLocalAvailabilityBlocks();
 }
 

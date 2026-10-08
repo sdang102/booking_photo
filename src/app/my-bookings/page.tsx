@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import RoleGuard from '@/components/RoleGuard';
 import MyBookingsModal from '@/components/MyBookingsModal';
 import { useAuth } from '@/lib/context/AuthContext';
-import { getUserBookings } from '@/lib/services/bookingService';
+import { getReliableUserBookings } from '@/lib/services/reliableBookingReadService';
 import type { BookingPhotoRecord } from '@/types';
 
 export default function MyBookings() {
@@ -13,11 +13,22 @@ export default function MyBookings() {
   const { user } = useAuth();
   const [items, setItems] = useState<BookingPhotoRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!user) return;
-    getUserBookings(user.id, user.email, { limit: 50 }).then(setItems).finally(() => setLoading(false));
+    setLoading(true);
+    setError('');
+    try {
+      setItems(await getReliableUserBookings(user.id, user.email, { limit: 50 }));
+    } catch {
+      setError('Không thể tải lịch chụp của bạn. Vui lòng kiểm tra kết nối và thử lại.');
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
-  return <RoleGuard allow={['user', 'admin', 'photographer']}><MyBookingsModal isOpen isLoading={loading} bookings={items} onClose={() => router.push('/')} onNewBooking={() => router.push('/booking')} onOpenAuth={() => router.push('/login?next=%2Fmy-bookings')} /></RoleGuard>;
+  useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
+
+  return <RoleGuard allow={['user', 'admin', 'photographer']}><MyBookingsModal isOpen isLoading={loading} error={error} onRetry={() => void load()} bookings={items} onClose={() => router.push('/')} onNewBooking={() => router.push('/booking')} onOpenAuth={() => router.push('/login?next=%2Fmy-bookings')} /></RoleGuard>;
 }

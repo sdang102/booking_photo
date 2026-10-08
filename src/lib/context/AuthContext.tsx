@@ -68,11 +68,12 @@ async function profileFromSupabase(authUser: { id:string; email?:string; user_me
       };
     } else {
       // Backward-compatible while the Phase 1 migration is waiting to be applied.
-      const [{ data }, { data: isAdmin }, { data: isPhotographer }] = await Promise.all([
+      const [{ data, error: profileError }, { data: isAdmin, error: adminError }, { data: isPhotographer, error: photographerError }] = await Promise.all([
         supabase.from('profiles').select('full_name,email,phone,avatar_url,avatar_path').eq('id', authUser.id).maybeSingle(),
         supabase.rpc('has_role', { required_role: 'admin' }),
         supabase.rpc('has_role', { required_role: 'photographer' }),
       ]);
+      if (profileError && adminError && photographerError) throw new Error('Không thể tải hồ sơ và quyền tài khoản.');
       const dbRoles: AppRole[] = [isAdmin && 'admin', isPhotographer && 'photographer'].filter((role): role is AppRole => Boolean(role));
       profile = { id:authUser.id,email:authUser.email || data?.email || '',full_name:data?.full_name || String(authUser.user_metadata?.full_name || 'Khách hàng'),phone:data?.phone || String(authUser.user_metadata?.phone || ''),avatar_url:data?.avatar_url || undefined,avatar_path:data?.avatar_path || undefined,roles:dbRoles.length?normalizeRoles(dbRoles):rolesFromAuthMetadata(authUser.app_metadata,authUser.user_metadata) };
     }
@@ -91,6 +92,8 @@ async function profileFromSupabase(authUser: { id:string; email?:string; user_me
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -103,6 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profileCache = null;
         if (active) {
           setUser(null);
+          setAuthError('');
           setIsLoading(false);
         }
         return;
@@ -112,9 +116,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const profile = await profileFromSupabase(authUser);
         if (!active || currentSyncId !== syncId) return;
         setUser(profile);
+        setAuthError('');
       } catch {
         if (!active || currentSyncId !== syncId) return;
-        setUser(null);
+        setUser((current) => current ?? {
+          id: authUser.id,
+          email: authUser.email || '',
+          full_name: String(authUser.user_metadata?.full_name || 'Khách hàng'),
+          phone: String(authUser.user_metadata?.phone || ''),
+          roles: rolesFromAuthMetadata(authUser.app_metadata, authUser.user_metadata),
+        });
+        setAuthError('Đã giữ phiên đăng nhập nhưng chưa thể tải hồ sơ hoặc quyền. Vui lòng thử lại.');
       } finally {
         if (active && currentSyncId === syncId) setIsLoading(false);
       }
@@ -126,11 +138,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.setTimeout(() => void syncUser(session?.user ?? null), 0);
     });
 
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+      if (error) {
+        setAuthError('Không thể kiểm tra phiên đăng nhập. Vui lòng kiểm tra kết nối và thử lại.');
+        setIsLoading(false);
+        return;
+      }
+      void syncUser(data.session?.user ?? null);
+    }).catch(() => {
+      if (!active) return;
+      setAuthError('Không thể kiểm tra phiên đăng nhập. Vui lòng kiểm tra kết nối và thử lại.');
+      setIsLoading(false);
+    });
+
     return () => {
       active = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [retryKey]);
 
   const login = async (email: string, password = ''): Promise<AuthResult> => {
     setIsLoading(true);
@@ -257,7 +283,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value = { user, isAdmin: hasRole(user, 'admin'), isPhotographer: hasRole(user, 'photographer'), isLoading, login, register, resendConfirmation, updateProfile, updateAvatar, changePassword, logout };
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{authError && <div role="alert" className="fixed inset-x-3 top-3 z-[300] mx-auto max-w-xl rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 shadow-lg"><span>{authError}</span><button type="button" onClick={() => { setIsLoading(true); setAuthError(''); setRetryKey((value) => value + 1); }} className="ml-2 font-bold underline">Thử lại</button></div>}{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

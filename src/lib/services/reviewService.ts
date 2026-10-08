@@ -65,6 +65,7 @@ async function reviewLikeCounts(reviewIds: string[]) {
 }
 
 export async function getReviews(options: { publicOnly?: boolean; featuredFirst?: boolean; limit?: number; offset?: number; bookingIds?: string[] } = {}): Promise<ExperienceReview[]> {
+  let failure: unknown;
   try {
     const supabase = createClient();
     let query = supabase.from('reviews')
@@ -93,8 +94,9 @@ export async function getReviews(options: { publicOnly?: boolean; featuredFirst?
         is_public: row.is_public, is_featured: row.is_featured, created_at: row.created_at, updated_at: row.updated_at };
       }) as ExperienceReview[];
     }
-  } catch { /* local fallback */ }
-  if (!isDevelopment) return [];
+    failure = error;
+  } catch (error) { failure = error; }
+  if (!isDevelopment) throw new Error(failure instanceof Error ? failure.message : 'Không thể tải danh sách đánh giá.');
   let reviews = localReviews();
   if (options.publicOnly) reviews = reviews.filter((review) => review.is_public);
   reviews.sort((a, b) => options.featuredFirst && a.is_featured !== b.is_featured ? Number(b.is_featured) - Number(a.is_featured) : b.created_at.localeCompare(a.created_at));
@@ -104,10 +106,12 @@ export async function getReviews(options: { publicOnly?: boolean; featuredFirst?
 
 export async function getPhotographerReviews(): Promise<ExperienceReview[]> {
   const supabase=createClient();
-  const {data:{user}}=await supabase.auth.getUser();
-  if(!user)return[];
+  const {data:{user},error:authError}=await supabase.auth.getUser();
+  if(authError)throw new Error('Không thể xác thực tài khoản thợ chụp.');
+  if(!user)throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
   const {data,error}=await supabase.from('reviews').select('id,booking_id,user_id,rating,comment,is_public,is_featured,created_at,updated_at,bookings!inner(customer_name,service_name_snapshot,photographer_id),portfolio_albums(slug)').eq('bookings.photographer_id',user.id).order('created_at',{ascending:false}).limit(100);
-  if(error||!data)return[];
+  if(error)throw new Error(error.message||'Không thể tải đánh giá của thợ chụp.');
+  if(!data)return[];
   return data.map((row)=>{const booking=firstRelation(row.bookings);const album=firstRelation(row.portfolio_albums);return{id:row.id,booking_id:row.booking_id,user_id:row.user_id,customer_name:booking?.customer_name??'Khách hàng',rating:row.rating,comment:row.comment,service_title:booking?.service_name_snapshot??'',portfolio_slug:album?.slug,is_public:row.is_public,is_featured:row.is_featured,created_at:row.created_at,updated_at:row.updated_at}}) as ExperienceReview[];
 }
 
@@ -131,7 +135,7 @@ export async function createReview(input: { bookingId: string; userId?: string; 
   const comment = input.comment.trim();
   if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) return { success: false, message: 'Vui lòng chọn từ 1 đến 5 sao.' };
   if (comment.length < 10 || comment.length > 800) return { success: false, message: 'Nội dung đánh giá cần từ 10 đến 800 ký tự.' };
-  if ((input.photos?.length ?? 0) < 1 || (input.photos?.length ?? 0) > 5) return { success: false, message: 'Vui lòng chọn từ 1 đến 5 ảnh cho đánh giá.' };
+  if ((input.photos?.length ?? 0) > 5) return { success: false, message: 'Bạn chỉ có thể tải tối đa 5 ảnh cho đánh giá.' };
   try {
     const uploaded = await uploadReviewPhotos(input.photos ?? [], input.userId);
     const { data, error } = await createClient().rpc('create_review_with_images', {
@@ -190,7 +194,8 @@ export async function toggleReviewLike(reviewId: string): Promise<{ success: boo
 }
 
 async function uploadReviewPhotos(files: File[], userId?: string): Promise<UploadedImage[]> {
-  if (!userId || !files.length) throw new Error('Vui lòng đăng nhập và chọn ít nhất một ảnh.');
+  if (!userId) throw new Error('Vui lòng đăng nhập để gửi đánh giá.');
+  if (!files.length) return [];
   const selected = files.slice(0, 5);
   const uploaded: Array<UploadedImage | undefined> = [];
   const errors: unknown[] = [];

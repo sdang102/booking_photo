@@ -1,13 +1,14 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { getAllBookings } from '@/lib/services/bookingService';
+import { getReliableAllBookings } from '@/lib/services/reliableBookingReadService';
 import type { BookingPhotoRecord } from '@/types';
 
 interface PhotographerBookingsContextValue {
   items: BookingPhotoRecord[];
   isLoading: boolean;
   isLoadingMore: boolean;
+  error: string;
   hasMore: boolean;
   refresh: () => Promise<void>;
   loadMore: () => Promise<void>;
@@ -28,6 +29,7 @@ export function PhotographerBookingsProvider({ children }: { children: React.Rea
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [error, setError] = useState('');
   const lastFetchedAt = useRef(0);
   const requestInFlight = useRef<Promise<void> | null>(null);
   const fromDate = useRef(dateOffset(-30));
@@ -35,11 +37,15 @@ export function PhotographerBookingsProvider({ children }: { children: React.Rea
   const refresh = useCallback(async () => {
     if (requestInFlight.current) return requestInFlight.current;
     const request = (async () => {
+      setIsLoading(true);
+      setError('');
       try {
-        const bookings = await getAllBookings({ fromDate: fromDate.current, limit: PAGE_SIZE, offset: 0 });
+        const bookings = await getReliableAllBookings({ fromDate: fromDate.current, limit: PAGE_SIZE, offset: 0 });
         setItems(bookings);
         setHasMore(bookings.length === PAGE_SIZE);
         lastFetchedAt.current = Date.now();
+      } catch {
+        setError('Không thể tải booking. Vui lòng kiểm tra kết nối và thử lại.');
       } finally {
         setIsLoading(false);
       }
@@ -51,10 +57,13 @@ export function PhotographerBookingsProvider({ children }: { children: React.Rea
   const loadMore = useCallback(async () => {
     if (isLoadingMore || !hasMore || requestInFlight.current) return;
     setIsLoadingMore(true);
+    setError('');
     try {
-      const bookings = await getAllBookings({ fromDate: fromDate.current, limit: PAGE_SIZE, offset: items.length });
+      const bookings = await getReliableAllBookings({ fromDate: fromDate.current, limit: PAGE_SIZE, offset: items.length });
       setItems((current) => [...current, ...bookings]);
       setHasMore(bookings.length === PAGE_SIZE);
+    } catch {
+      setError('Không thể tải thêm booking. Vui lòng thử lại.');
     } finally {
       setIsLoadingMore(false);
     }
@@ -87,7 +96,7 @@ export function PhotographerBookingsProvider({ children }: { children: React.Rea
     };
   }, [refresh]);
 
-  return <PhotographerBookingsContext.Provider value={{ items, isLoading, isLoadingMore, hasMore, refresh, loadMore, updateBooking }}>
+  return <PhotographerBookingsContext.Provider value={{ items, isLoading, isLoadingMore, error, hasMore, refresh, loadMore, updateBooking }}>
     {children}
   </PhotographerBookingsContext.Provider>;
 }

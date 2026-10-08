@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, MapPin, PackageOpen, Sparkles, X } from 'lucide-react';
 import type { AvailabilityBlock, BookingFormData, BookingPhotoRecord, PublicScheduleItem, Service } from '@/types';
-import { createBookingPhoto, getAvailabilityBlocks, getPublicSchedule } from '@/lib/services/bookingService';
+import { createBookingPhoto, getAvailabilityBlocks, hasOperationalPhotographer } from '@/lib/services/bookingService';
+import { getReliablePublicSchedule } from '@/lib/services/reliableBookingReadService';
 import { useAuth } from '@/lib/context/AuthContext';
 import { formatVND } from './ServiceCard';
 import { normalizeVietnameseMobile, VIETNAMESE_MOBILE_ERROR } from '@/lib/phone';
@@ -62,34 +63,61 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
   const [calendarBookings, setCalendarBookings] = useState<PublicScheduleItem[]>([]);
   const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>([]);
   const [availabilityLoading, setAvailabilityLoading] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState('');
+  const [operationalStatus, setOperationalStatus] = useState<'checking' | 'available' | 'unavailable' | 'error'>('checking');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<BookingPhotoRecord | null>(null);
-  const [selectedServiceId, setSelectedServiceId] = useState(initialServiceId || services[0]?.id || '');
+  const [selectedServiceId, setSelectedServiceId] = useState(() => {
+    if (!initialServiceId) return services[0]?.id || '';
+    return services.find((item) => item.id === initialServiceId || item.slug === initialServiceId)?.id || '';
+  });
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const servicePickerRef = useRef<HTMLDivElement>(null);
 
-  const service = useMemo(() => services.find((item) => item.id === selectedServiceId) ?? services[0], [selectedServiceId, services]);
+  const service = useMemo(() => services.find((item) => item.id === selectedServiceId), [selectedServiceId, services]);
+  const invalidRequestedService = Boolean(initialServiceId && !services.some((item) => item.id === initialServiceId || item.slug === initialServiceId) && !selectedServiceId);
   const total = service?.price || 0;
   const selectedShift = BOOKING_SHIFTS.find((shift) => shift.range === time);
   const availableShifts = date ? BOOKING_SHIFTS.filter((shift) => isRangeAvailable(date, shift.range, calendarBookings, availabilityBlocks)) : [];
 
   const refreshAvailability = async () => {
-    const [bookings, blocks] = await Promise.all([getPublicSchedule(), getAvailabilityBlocks()]);
-    setCalendarBookings(bookings);
-    setAvailabilityBlocks(blocks);
-    setAvailabilityLoading(false);
+    setAvailabilityLoading(true);
+    setAvailabilityError('');
+    try {
+      const [bookings, blocks] = await Promise.all([getReliablePublicSchedule(), getAvailabilityBlocks()]);
+      setCalendarBookings(bookings);
+      setAvailabilityBlocks(blocks);
+    } catch {
+      setAvailabilityError('Không thể tải lịch trống. Vui lòng kiểm tra kết nối và thử lại.');
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
+  const refreshOperationalStatus = async () => {
+    setOperationalStatus('checking');
+    try {
+      setOperationalStatus(await hasOperationalPhotographer() ? 'available' : 'unavailable');
+    } catch {
+      setOperationalStatus('error');
+    }
   };
 
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
-    Promise.all([getPublicSchedule(), getAvailabilityBlocks()]).then(([bookings, blocks]) => {
+    Promise.all([getReliablePublicSchedule(), getAvailabilityBlocks()]).then(([bookings, blocks]) => {
       if (!active) return;
       setCalendarBookings(bookings);
       setAvailabilityBlocks(blocks);
-      setAvailabilityLoading(false);
-    });
+    }).catch(() => {
+      if (!active) return;
+      setAvailabilityError('Không thể tải lịch trống. Vui lòng kiểm tra kết nối và thử lại.');
+    }).finally(() => { if (active) setAvailabilityLoading(false); });
+    hasOperationalPhotographer().then((hasPhotographer) => {
+      if (active) setOperationalStatus(hasPhotographer ? 'available' : 'unavailable');
+    }).catch(() => { if (active) setOperationalStatus('error'); });
     return () => { active = false; };
   }, [isOpen, user]);
 
@@ -196,6 +224,20 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
       return;
     }
     setSubmitting(true); setError('');
+    try {
+      const hasPhotographer = await hasOperationalPhotographer();
+      setOperationalStatus(hasPhotographer ? 'available' : 'unavailable');
+      if (!hasPhotographer) {
+        setSubmitting(false);
+        setError('Hiện chưa có thợ chụp sẵn sàng tiếp nhận lịch. Vui lòng quay lại sau hoặc liên hệ FIN PHOTO để được hỗ trợ.');
+        return;
+      }
+    } catch {
+      setSubmitting(false);
+      setOperationalStatus('error');
+      setError('Chưa thể kiểm tra khả năng tiếp nhận lịch. Vui lòng thử lại sau ít phút.');
+      return;
+    }
     const payload: BookingFormData = {
       customer_name: name.trim(), customer_phone: normalizedPhone, customer_email: email.trim(),
       service_id: service.id, service_title: service.title, booking_date: date, booking_time: time,
@@ -224,7 +266,7 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
         onClose={closeWizard}
         onBack={() => { setError(''); if (step === 1) closeWizard(); else setStep(step - 1); }}
         onNext={step < 3 ? next : submit}
-        nextDisabled={step < 3 ? step === 1 && availabilityLoading : submitting || !service}
+        nextDisabled={step < 3 ? step === 1 && (availabilityLoading || Boolean(availabilityError)) : submitting || !service || operationalStatus !== 'available'}
         showNextIcon={step < 3}
         nextLabel={step < 3 ? (step === 1 && availabilityLoading ? 'Đang kiểm tra lịch…' : step === 1 ? 'Điền thông tin' : 'Kiểm tra lịch') : (submitting ? 'Đang gửi...' : 'Gửi yêu cầu đặt lịch')}
         aside={<aside className="hidden border-l border-sky-100 bg-slate-50 p-6 lg:block">
@@ -254,6 +296,18 @@ export default function BookingWizard({ isOpen, onClose, services, initialServic
                  <p className="mt-7 rounded-xl bg-sky-50 p-3 text-xs leading-5 text-slate-600">Không cần đặt cọc trực tuyến. Lịch chỉ được xác nhận sau khi chúng tôi liên hệ với bạn.</p>
               </aside>}
       >
+        <div className="mb-5 space-y-3">
+          <label className="block text-sm font-bold text-slate-700 lg:hidden">Gói chụp
+            <select value={selectedServiceId} onChange={(event) => { setSelectedServiceId(event.target.value); setError(''); }} className="booking-input mt-2">
+              <option value="" disabled>Chọn một gói chụp</option>
+              {services.map((item) => <option key={item.id} value={item.id}>{item.title} · {formatVND(item.price)}</option>)}
+            </select>
+          </label>
+          {invalidRequestedService && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Gói chụp trong liên kết không tồn tại hoặc không còn hoạt động. Vui lòng chọn một gói khác.</p>}
+          {availabilityError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800"><span>{availabilityError}</span><button type="button" onClick={() => void refreshAvailability()} className="font-bold underline">Thử lại</button></div>}
+          {operationalStatus === 'unavailable' && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Hiện chưa có thợ chụp sẵn sàng tiếp nhận booking mới. Bạn có thể xem thông tin gói nhưng chưa thể gửi yêu cầu.</p>}
+          {operationalStatus === 'error' && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800"><span>Không thể kiểm tra trạng thái tiếp nhận booking.</span><button type="button" onClick={() => void refreshOperationalStatus()} className="font-bold underline">Thử lại</button></div>}
+        </div>
         {step === 1 && <BookingStepSchedule date={date} time={time} bookings={calendarBookings} blocks={availabilityBlocks} loading={availabilityLoading} availableShifts={availableShifts} onDateChange={(value) => { setDate(value); setTime(''); setError(''); }} onTimeChange={(value) => { setTime(value); setError(''); }} />}
         {step === 2 && <BookingStepCustomer address={address} name={name} phone={phone} email={email} notes={notes} setAddress={(value) => { setAddress(value); setError(''); }} setName={setName} setPhone={setPhone} setEmail={setEmail} setNotes={setNotes} clearError={() => setError('')} />}
         {step === 3 && <BookingStepConfirm service={service} date={date} time={time} selectedShift={selectedShift} address={address} name={name} phone={phone} email={email} total={total} />}

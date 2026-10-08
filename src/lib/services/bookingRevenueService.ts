@@ -35,7 +35,7 @@ export async function getBookingFinancialRecords({ limit = 50, offset = 0, statu
   if (fromDate) query = query.gte('shoot_date', fromDate);
   if (toDate) query = query.lte('shoot_date', toDate);
   const { data, error } = await query.range(offset, offset + limit - 1);
-  if (error || !data) return [];
+  if (error || !data) throw new Error('Không thể tải danh sách doanh thu.');
   return data.map((row) => ({
     id: String(row.id),
     booking_date: String(row.shoot_date),
@@ -54,7 +54,7 @@ export async function getBookingRevenueSummary(filters: BookingRevenueFilters = 
   if (filters.fromDate) query = query.gte('shoot_date', filters.fromDate);
   if (filters.toDate) query = query.lte('shoot_date', filters.toDate);
   const { data, error } = await query;
-  if (error || !data) return { total: 0, realized: 0, expected: 0, atVenue: 0, activeCount: 0 };
+  if (error || !data) throw new Error('Không thể tải tổng hợp doanh thu.');
 
   const rows = data as Array<{ total_price: number | string | null; status: BookingStatus }>;
   const amount = (status?: BookingStatus) => rows
@@ -67,6 +67,16 @@ export async function getBookingRevenueSummary(filters: BookingRevenueFilters = 
     atVenue: rows.filter((row) => !['cancelled', 'completed'].includes(row.status)).reduce((sum, row) => sum + Number(row.total_price ?? 0), 0),
     activeCount: rows.filter((row) => !['cancelled', 'completed'].includes(row.status)).length,
   };
+}
+
+export async function getActiveUnassignedBookingCount(): Promise<number> {
+  const { count, error } = await createClient()
+    .from(TABLE_NAME)
+    .select('id', { count: 'exact', head: true })
+    .is('photographer_id', null)
+    .in('status', ['pending', 'confirmed', 'checked_in', 'shooting']);
+  if (error) throw new Error('Không thể kiểm tra booking chưa được gán thợ chụp.');
+  return count ?? 0;
 }
 
 export { BOOKING_SELECT };

@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- tiny admin review avatars are fixed-size and intentionally not optimized. */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Eye, EyeOff, Star, Trash2 } from 'lucide-react';
 import { deleteReview, getReviews, updateReviewModeration } from '@/lib/services/reviewService';
 import { DEFAULT_AVATAR_URL } from '@/lib/avatar';
@@ -17,10 +17,22 @@ export default function AdminReviewsPage() {
   const [deletingId, setDeletingId] = useState('');
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    void getReviews({ limit: PAGE_SIZE }).then((items) => { setReviews(items); setHasMore(items.length === PAGE_SIZE); });
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const items = await getReviews({ limit: PAGE_SIZE });
+      setReviews(items);
+      setHasMore(items.length === PAGE_SIZE);
+    } catch {
+      setError('Không thể tải đánh giá. Vui lòng kiểm tra kết nối và thử lại.');
+    } finally { setLoading(false); }
   }, []);
+
+  useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
 
   const loadMore = async () => {
     if (loadingMore) return;
@@ -29,15 +41,22 @@ export default function AdminReviewsPage() {
       const items = await getReviews({ limit: PAGE_SIZE, offset: reviews.length });
       setReviews((current) => [...current, ...items]);
       setHasMore(items.length === PAGE_SIZE);
+    } catch {
+      setError('Không thể tải thêm đánh giá. Vui lòng thử lại.');
     } finally {
       setLoadingMore(false);
     }
   };
 
   const update = async (id: string, patch: Partial<Pick<ExperienceReview, 'is_public' | 'is_featured'>>) => {
-    await updateReviewModeration(id, patch);
-    setReviews((items) => items.map((item) => item.id === id ? { ...item, ...patch } : item));
-    await refreshPublicContent();
+    setMessage('');
+    try {
+      await updateReviewModeration(id, patch);
+      setReviews((items) => items.map((item) => item.id === id ? { ...item, ...patch } : item));
+      await refreshPublicContent();
+    } catch (updateError) {
+      setMessage(updateError instanceof Error ? updateError.message : 'Không thể cập nhật đánh giá.');
+    }
   };
 
   const remove = async (review: ExperienceReview) => {
@@ -58,7 +77,9 @@ export default function AdminReviewsPage() {
     <h1 className="mt-2 text-3xl font-black">Quản lý đánh giá</h1>
     <p className="mt-2 text-sm text-slate-500">Ẩn/hiện, chọn nổi bật hoặc xóa vĩnh viễn. Nội dung khách viết không thể chỉnh sửa.</p>
     {message && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{message}</p>}
+    {error && <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><p>{error}</p><button type="button" onClick={() => void load()} className="mt-2 font-bold underline">Thử lại</button></div>}
     <div className="mt-8 space-y-4">
+      {loading && <div className="rounded-2xl border border-sky-200 bg-white p-10 text-center text-sm text-slate-500">Đang tải đánh giá…</div>}
       {reviews.map((review) => <article key={review.id} className="rounded-2xl border border-sky-200 bg-white p-5">
         <div className="grid gap-5 lg:grid-cols-[1fr_auto]">
           <div>
@@ -73,7 +94,7 @@ export default function AdminReviewsPage() {
           </div>
         </div>
       </article>)}
-      {!reviews.length && <div className="rounded-2xl border border-dashed border-sky-300 bg-white p-10 text-center text-sm text-slate-500">Chưa có đánh giá.</div>}
+      {!loading && !error && !reviews.length && <div className="rounded-2xl border border-dashed border-sky-300 bg-white p-10 text-center text-sm text-slate-500">Chưa có đánh giá.</div>}
       {hasMore && <button type="button" onClick={() => void loadMore()} disabled={loadingMore} className="mx-auto block min-h-11 rounded-xl border border-sky-300 px-5 text-sm font-bold text-sky-800 disabled:opacity-60">{loadingMore ? 'Đang tải…' : 'Tải thêm đánh giá'}</button>}
     </div>
   </>;

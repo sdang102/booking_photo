@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Navbar from './Navbar';
 import { useAuth } from '@/lib/context/AuthContext';
-import { getUserBookings } from '@/lib/services/bookingService';
+import { getReliableUserBookings } from '@/lib/services/reliableBookingReadService';
 import type { BookingPhotoRecord } from '@/types';
 
 const AuthModal = dynamic(() => import('./AuthModal'), { ssr: false });
@@ -18,6 +18,8 @@ export default function PublicSiteHeader() {
   const [bookingsOpen, setBookingsOpen] = useState(false);
   const [bookings, setBookings] = useState<BookingPhotoRecord[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [bookingsError, setBookingsError] = useState('');
+  const [bookingsRetryKey, setBookingsRetryKey] = useState(0);
   const [activeBookingCount, setActiveBookingCount] = useState(0);
 
   useEffect(() => {
@@ -25,12 +27,13 @@ export default function PublicSiteHeader() {
     let active = true;
     const load = () => {
       if (document.visibilityState === 'hidden') return;
-      getUserBookings(user.id, user.email, { limit: 50 }).then((items) => {
+      getReliableUserBookings(user.id, user.email, { limit: 50 }).then((items) => {
         if (!active) return;
         setBookings(items);
+        setBookingsError('');
         setActiveBookingCount(items.filter((booking) => !['completed', 'cancelled'].includes(booking.status)).length);
         setBookingsLoading(false);
-      }).catch(() => { if (active) setBookingsLoading(false); });
+      }).catch(() => { if (active) { setBookingsError('Không thể tải lịch chụp của bạn. Vui lòng thử lại.'); setBookingsLoading(false); } });
     };
     const onVisibilityChange = () => { if (document.visibilityState === 'visible') load(); };
     void load();
@@ -43,7 +46,7 @@ export default function PublicSiteHeader() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.clearInterval(interval);
     };
-  }, [bookingsOpen, user]);
+  }, [bookingsOpen, bookingsRetryKey, user]);
 
   const openBookings = () => { setBookingsLoading(Boolean(user)); setBookingsOpen(true); };
 
@@ -56,6 +59,6 @@ export default function PublicSiteHeader() {
       bookingNotificationKey={`${user?.id ?? 'guest'}:${user ? activeBookingCount : 0}`}
     />
     {authOpen && <AuthModal isOpen onClose={() => setAuthOpen(false)} />}
-    {bookingsOpen && <MyBookingsModal isOpen isLoading={bookingsLoading} onClose={() => setBookingsOpen(false)} bookings={bookings} onNewBooking={() => router.push('/booking')} onOpenAuth={() => setAuthOpen(true)} />}
+    {bookingsOpen && <MyBookingsModal isOpen isLoading={bookingsLoading} error={bookingsError} onRetry={() => { setBookingsLoading(true); setBookingsError(''); setBookingsRetryKey((value) => value + 1); }} onClose={() => setBookingsOpen(false)} bookings={bookings} onNewBooking={() => router.push('/booking')} onOpenAuth={() => setAuthOpen(true)} />}
   </>;
 }

@@ -129,9 +129,9 @@ Trong Dashboard > Authentication > URL Configuration:
 - `Site URL`: domain HTTPS chính thức, ví dụ `https://<TEN-MIEN>`.
 - `Redirect URLs`: thêm chính xác URL local/staging/production cần dùng, tối thiểu
   `http://localhost:3000/login?confirmed=1` và
-  `https://<TEN-MIEN>/login?confirmed=1`.
-- Khi triển khai luồng đặt lại mật khẩu ở Nhóm 1, thêm URL callback reset tương ứng trước
-  khi kiểm thử E2E; không dùng wildcard rộng trên production.
+  `https://<TEN-MIEN>/login?confirmed=1`, cùng callback đặt lại mật khẩu
+  `http://localhost:3000/reset-password` và `https://<TEN-MIEN>/reset-password`.
+- Không dùng wildcard rộng trên production.
 
 Trong Dashboard > Authentication > Email/SMTP:
 

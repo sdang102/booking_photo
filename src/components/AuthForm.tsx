@@ -1,6 +1,7 @@
 'use client';
 
 import type { FormEvent, ReactNode, Dispatch, SetStateAction } from 'react';
+import Link from 'next/link';
 import { Camera, Eye, EyeOff, Lock, Mail, Phone, User } from 'lucide-react';
 
 export type AuthMode = 'login' | 'register';
@@ -39,6 +40,8 @@ export default function AuthForm({ mode, onModeChange, email, setEmail, password
       </>}
       <AuthField label="Địa chỉ email" icon={<Mail className="h-4 w-4" />}><input required type="email" autoComplete="email" placeholder="email@example.com" value={email} onChange={(event) => setEmail(event.target.value)} className="auth-input" /></AuthField>
       <AuthField label="Mật khẩu" icon={<Lock className="h-4 w-4" />}><input required minLength={mode === 'register' ? 8 : 6} type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder={mode === 'register' ? 'Tối thiểu 8 ký tự' : 'Nhập mật khẩu'} value={password} onChange={(event) => setPassword(event.target.value)} className="auth-input pr-12" /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} className="absolute right-2 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-sky-50 hover:text-sky-800">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></AuthField>
+      {mode === 'login' && <div className="text-right"><Link href="/forgot-password" className="text-xs font-bold text-sky-700 underline-offset-4 hover:underline">Quên mật khẩu?</Link></div>}
+      {mode === 'register' && <p className="text-xs leading-5 text-slate-500">Khi tạo tài khoản, bạn đồng ý với <Link href="/terms" className="font-bold text-sky-700 underline">Điều khoản sử dụng</Link> và xác nhận đã đọc <Link href="/privacy" className="font-bold text-sky-700 underline">Chính sách riêng tư</Link>.</p>}
       <button type="submit" disabled={isLoading} className="sky-button flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 font-bold disabled:cursor-wait disabled:opacity-70"><Camera className="h-4 w-4" /><span>{isLoading ? 'Đang xử lý…' : mode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}</span></button>
     </form>
   </>;

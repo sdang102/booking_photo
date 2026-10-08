@@ -2,9 +2,10 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, Camera, Check, MoveUpRight, Music2, Phone, Sparkles } from 'lucide-react';
+import { ArrowRight, AtSign, Camera, Check, Mail, MessageCircle, MoveUpRight, Music2, Phone, Sparkles } from 'lucide-react';
 import { PORTFOLIO_ALBUMS } from '@/lib/data/mockData';
 import type { PortfolioAlbum, Service } from '@/types';
+import type { PublicSiteSettings } from '@/lib/services/siteSettingsService';
 import { formatVND } from './ServiceCard';
 import ResponsiveAlbumImage from './ResponsiveAlbumImage';
 
@@ -98,12 +99,16 @@ export function FinClosing({ onBook }: { onBook: () => void }) {
   return <section className="fin-section fin-closing"><div className="fin-shell"><div><p className="fin-kicker"><span /> Bắt đầu một dự án riêng</p><h2>Bạn có ý tưởng cho bộ ảnh của riêng mình?</h2><p>Hãy để chúng tôi cùng bạn biến một cảm hứng thành những khung hình có chiều sâu và mang đúng dấu ấn cá nhân.</p><button className="fin-button fin-button--gold" type="button" onClick={onBook}>Đặt lịch tư vấn <ArrowRight /></button></div></div></section>;
 }
 
-export function FinFooter() {
-  return <footer className="fin-footer"><div className="fin-shell"><div className="fin-footer__brand"><Camera /><div><strong>FIN PHOTO</strong><span>Editorial photography</span></div></div><p>Không gian hình ảnh dành cho những câu chuyện chân thật, thanh lịch và có chiều sâu.</p><nav><Link href="/">Trang chủ</Link><Link href="/portfolio">Bộ sưu tập</Link><Link href="/services">Gói chụp</Link><Link href="/about">Portfolio</Link><Link href="/reviews">Đánh giá</Link></nav><div className="fin-footer__contact" aria-label="Thông tin liên hệ">
-    <a href="https://www.tiktok.com/@chonphoto.sgn" target="_blank" rel="noreferrer" aria-label="TikTok Chọn Photo Sài Gòn" title="TikTok"><Music2/></a>
-    <a href="https://www.instagram.com/finphoto.sgn?stkn=MWl4anFndmN1cXF1OA%3D%3D&utm_source=qr" target="_blank" rel="noreferrer" aria-label="Instagram FIN PHOTO" title="Instagram"><InstagramMark/></a>
-    <a href="tel:+84392152816" aria-label="Gọi số 0392 152 816" title="0392 152 816"><Phone/></a>
-  </div><div className="fin-footer__bottom"><span>© 2026 FIN PHOTO. All rights reserved.</span><span>Made with light in Saigon <Sparkles /></span></div></div></footer>;
+export function FinFooter({ settings }: { settings: PublicSiteSettings }) {
+  const phoneHref = settings.phone ? `tel:${settings.phone.replace(/[^+\d]/g, '')}` : '';
+  return <footer className="fin-footer"><div className="fin-shell"><div className="fin-footer__brand"><Camera /><div><strong>{settings.websiteName}</strong><span>Editorial photography</span></div></div><p>Không gian hình ảnh dành cho những câu chuyện chân thật, thanh lịch và có chiều sâu.</p><nav><Link href="/">Trang chủ</Link><Link href="/portfolio">Bộ sưu tập</Link><Link href="/services">Gói chụp</Link><Link href="/about">Portfolio</Link><Link href="/reviews">Đánh giá</Link><Link href="/privacy">Riêng tư</Link><Link href="/terms">Điều khoản</Link></nav><div className="fin-footer__contact" aria-label="Thông tin liên hệ">
+    {settings.tiktokUrl && <a href={settings.tiktokUrl} target="_blank" rel="noreferrer" aria-label={`TikTok ${settings.websiteName}`} title="TikTok"><Music2/></a>}
+    {settings.instagramUrl && <a href={settings.instagramUrl} target="_blank" rel="noreferrer" aria-label={`Instagram ${settings.websiteName}`} title="Instagram"><InstagramMark/></a>}
+    {settings.facebookUrl && <a href={settings.facebookUrl} target="_blank" rel="noreferrer" aria-label={`Facebook ${settings.websiteName}`} title="Facebook"><MessageCircle/></a>}
+    {settings.threadsUrl && <a href={settings.threadsUrl} target="_blank" rel="noreferrer" aria-label={`Threads ${settings.websiteName}`} title="Threads"><AtSign/></a>}
+    {phoneHref && <a href={phoneHref} aria-label={`Gọi ${settings.websiteName}`} title="Điện thoại"><Phone/></a>}
+    {settings.email && <a href={`mailto:${settings.email}`} aria-label={`Email ${settings.websiteName}`} title="Email"><Mail/></a>}
+  </div><div className="fin-footer__bottom"><span>© 2026 {settings.websiteName}. All rights reserved.</span><span>Made with light in Saigon <Sparkles /></span></div></div></footer>;
 }
 
 function InstagramMark(){return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>}
