@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/context/AuthContext';
 import { X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { normalizeVietnameseMobile, VIETNAMESE_MOBILE_ERROR } from '@/lib/phone';
+import { reportError } from '@/lib/reportError';
 import AuthForm, { type AuthMode } from './AuthForm';
 
 interface AuthModalProps {
@@ -40,6 +41,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, defaultMode = 'l
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isLoading) return;
     setMessage(''); setMessageSuccess(false); setIsLoading(true);
     if (mode === 'register' && (!fullName.trim() || !phone.trim())) {
       setIsLoading(false); setMessage('Vui lòng điền đầy đủ họ tên và số điện thoại.'); return;
@@ -58,13 +60,20 @@ export default function AuthModal({ isOpen, onClose, onSuccess, defaultMode = 'l
       }
       if (result.roles?.includes('admin')) { onClose(); router.push('/admin'); }
       else { onSuccess?.(); onClose(); }
-    } catch { setMessage('Có lỗi xảy ra, vui lòng thử lại.'); }
+    } catch (error) {
+      reportError(error, { area: 'auth', operation: mode === 'login' ? 'modal-login' : 'modal-register' });
+      setMessage('Có lỗi xảy ra, vui lòng thử lại.');
+    }
     finally { setIsLoading(false); }
   };
 
   const resend = async () => {
-    const result = await resendConfirmation(email);
-    setMessageSuccess(result.success); setMessage(result.message || '');
+    if (isLoading) return;
+    setIsLoading(true);
+    try {
+      const result = await resendConfirmation(email);
+      setMessageSuccess(result.success); setMessage(result.message || '');
+    } finally { setIsLoading(false); }
   };
 
   const changeMode = (nextMode: AuthMode) => { setMode(nextMode); setMessage(''); setMessageSuccess(false); };

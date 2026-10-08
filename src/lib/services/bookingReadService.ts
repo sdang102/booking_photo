@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 import type { BookingPhotoRecord, BookingStatus } from '@/types';
-import { devWarn } from '@/lib/devLogger';
+import { reportError } from '@/lib/reportError';
 import {
   ACTIVE_BOOKING_STATUSES,
   BOOKING_SELECT,
@@ -23,6 +23,7 @@ export async function getUserBookings(
   email?: string,
   { activeOnly = false, limit = 50 }: { activeOnly?: boolean; limit?: number } = {},
 ): Promise<BookingPhotoRecord[]> {
+  let failure: unknown;
   try {
     const supabase = createClient();
     let query = supabase.from(TABLE_NAME).select(BOOKING_SELECT).order('created_at', { ascending: false }).limit(limit);
@@ -32,15 +33,19 @@ export async function getUserBookings(
 
     const { data, error } = await query;
     if (!error && data?.length) return data.map(mapBookingRow);
+    failure = error;
     if (!error && userId && email) {
       let emailQuery = supabase.from(TABLE_NAME).select(BOOKING_SELECT).eq('customer_email', email).order('created_at', { ascending: false }).limit(limit);
       if (activeOnly) emailQuery = emailQuery.in('status', ACTIVE_BOOKING_STATUSES);
       const { data: emailData, error: emailError } = await emailQuery;
       if (!emailError && emailData) return emailData.map(mapBookingRow);
+      failure = emailError;
     }
   } catch (err) {
-    devWarn('Error fetching user bookings from Supabase:', err);
+    failure = err;
   }
+
+  if (failure) reportError(failure, { area: 'booking', operation: 'read-user-legacy' });
 
   if (!isDevelopment) return [];
   let locals = getLocalBookings();
@@ -52,6 +57,9 @@ export async function getUserBookings(
 
 export async function getBookingById(id: string) {
   const { data, error } = await createClient().from(TABLE_NAME).select(BOOKING_SELECT).eq('id', id).maybeSingle();
-  if (error || !data) return null;
+  if (error || !data) {
+    if (error) reportError(error, { area: 'booking', operation: 'read-one' });
+    return null;
+  }
   return mapBookingRow(data);
 }

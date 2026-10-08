@@ -55,6 +55,7 @@ export default function AvailabilityManager(){
 
   const submit=async(event:FormEvent)=>{
     event.preventDefault();
+    if(busy)return;
     const requested=BOOKING_SHIFTS.filter((shift)=>allDay||selectedShifts.includes(shift.id));
     if(!requested.length){setMessage({type:'error',text:'Vui lòng chọn ít nhất một ca cần chặn.'});return}
     const conflicts=requested.map((shift)=>({shift,booking:shiftConflict(shift.id)})).filter((entry)=>entry.booking);
@@ -81,6 +82,7 @@ export default function AvailabilityManager(){
   };
 
   const unblock=async(block:AvailabilityBlock)=>{
+    if(removingId||removingDay)return;
     if(!window.confirm(`Bạn có chắc muốn gỡ chặn ${blockLabel(block)} ngày ${formatShortDate(block.date)}?\n\nCa này sẽ được mở lại cho khách đặt lịch.`))return;
     const previous=blocks;setRemovingId(block.id);setMessage(null);setBlocks((current)=>current.filter((item)=>item.id!==block.id));
     try{
@@ -91,6 +93,7 @@ export default function AvailabilityManager(){
   };
 
   const unblockDay=async(day:string,dayBlocks:AvailabilityBlock[])=>{
+    if(removingId||removingDay)return;
     if(!dayBlocks.length)return;
     if(!window.confirm(`Bạn có chắc muốn gỡ toàn bộ ${dayBlocks.length} ca đang chặn ngày ${formatShortDate(day)}?\n\nTất cả các ca này sẽ được mở lại cho khách đặt lịch.`))return;
     const previous=blocks;const removedIds=new Set(dayBlocks.map((block)=>block.id));setRemovingDay(day);setMessage(null);setBlocks((current)=>current.filter((block)=>!removedIds.has(block.id)));

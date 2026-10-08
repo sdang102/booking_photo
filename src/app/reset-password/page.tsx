@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { KeyRound } from 'lucide-react';
 import BrandLogo from '@/components/BrandLogo';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 
 type RecoveryState = 'checking' | 'ready' | 'invalid' | 'success';
 
@@ -29,6 +30,7 @@ export default function ResetPasswordPage() {
       const { data, error } = await supabase.auth.getSession();
       if (!active) return;
       if (error || !data.session) {
+        if (error) reportError(error, { area: 'auth', operation: 'verify-password-reset' });
         setMessage('Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.');
         setState('invalid');
       } else {
@@ -58,6 +60,7 @@ export default function ResetPasswordPage() {
       const supabase = createClient();
       const { error } = await supabase.auth.updateUser({ password });
       if (error) {
+        reportError(error, { area: 'auth', operation: 'reset-password' });
         setMessage(/expired|session|token/i.test(error.message)
           ? 'Liên kết đã hết hạn. Vui lòng yêu cầu một liên kết mới.'
           : 'Chưa thể cập nhật mật khẩu. Vui lòng thử lại.');
@@ -66,7 +69,8 @@ export default function ResetPasswordPage() {
         setMessage('Đã đặt lại mật khẩu. Bạn có thể đăng nhập bằng mật khẩu mới.');
         setState('success');
       }
-    } catch {
+    } catch (error) {
+      reportError(error, { area: 'auth', operation: 'reset-password' });
       setMessage('Không thể kết nối dịch vụ xác thực. Vui lòng thử lại.');
     } finally {
       setBusy(false);

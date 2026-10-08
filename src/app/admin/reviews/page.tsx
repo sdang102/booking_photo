@@ -15,6 +15,7 @@ export default function AdminReviewsPage() {
   const [reviews, setReviews] = useState<ExperienceReview[]>([]);
   const [message, setMessage] = useState('');
   const [deletingId, setDeletingId] = useState('');
+  const [updatingId, setUpdatingId] = useState('');
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,8 @@ export default function AdminReviewsPage() {
   };
 
   const update = async (id: string, patch: Partial<Pick<ExperienceReview, 'is_public' | 'is_featured'>>) => {
+    if (updatingId) return;
+    setUpdatingId(id);
     setMessage('');
     try {
       await updateReviewModeration(id, patch);
@@ -56,10 +59,11 @@ export default function AdminReviewsPage() {
       await refreshPublicContent();
     } catch (updateError) {
       setMessage(updateError instanceof Error ? updateError.message : 'Không thể cập nhật đánh giá.');
-    }
+    } finally { setUpdatingId(''); }
   };
 
   const remove = async (review: ExperienceReview) => {
+    if (deletingId) return;
     if (!confirm(`Xóa vĩnh viễn đánh giá của “${review.customer_name}”?\n\nThao tác này không thể hoàn tác.`)) return;
     setMessage(''); setDeletingId(review.id);
     try {
@@ -93,8 +97,8 @@ export default function AdminReviewsPage() {
             <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-slate-500"><span>Service: {review.service_title}</span><span>Booking: {review.booking_id}</span></div>
           </div>
           <div className="flex flex-col gap-2 sm:min-w-56">
-            <button onClick={() => void update(review.id, { is_public: !review.is_public })} className="flex items-center justify-center gap-2 rounded-xl border border-sky-200 px-3 py-2 text-xs font-bold">{review.is_public ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{review.is_public ? 'Đang công khai' : 'Đang ẩn'}</button>
-            <button onClick={() => void update(review.id, { is_featured: !review.is_featured })} className={`rounded-xl px-3 py-2 text-xs font-bold ${review.is_featured ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{review.is_featured ? '★ Đang nổi bật' : '☆ Chọn nổi bật'}</button>
+            <button disabled={Boolean(updatingId)} onClick={() => void update(review.id, { is_public: !review.is_public })} className="flex items-center justify-center gap-2 rounded-xl border border-sky-200 px-3 py-2 text-xs font-bold disabled:cursor-wait disabled:opacity-60">{review.is_public ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{updatingId===review.id?'Đang cập nhật…':review.is_public ? 'Đang công khai' : 'Đang ẩn'}</button>
+            <button disabled={Boolean(updatingId)} onClick={() => void update(review.id, { is_featured: !review.is_featured })} className={`rounded-xl px-3 py-2 text-xs font-bold disabled:cursor-wait disabled:opacity-60 ${review.is_featured ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{updatingId===review.id?'Đang cập nhật…':review.is_featured ? '★ Đang nổi bật' : '☆ Chọn nổi bật'}</button>
             <button disabled={deletingId === review.id} onClick={() => void remove(review)} className="flex items-center justify-center gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 disabled:opacity-50"><Trash2 className="h-4 w-4" />{deletingId === review.id ? 'Đang xóa…' : 'Xóa đánh giá'}</button>
           </div>
         </div>

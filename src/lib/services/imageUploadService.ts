@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 
 const MAX_SOURCE_SIZE = 20 * 1024 * 1024;
 const DEFAULT_MAX_DIMENSION = 1920;
@@ -97,6 +98,7 @@ export async function uploadPreparedImage(
     };
   } catch (error) {
     if (uploadedPaths.length) await supabase.storage.from(bucket).remove(uploadedPaths);
+    reportError(error, { area: 'storage', operation: 'upload-image', bucket });
     throw new Error(storageErrorMessage(error, bucket));
   }
 }
@@ -145,5 +147,5 @@ function storageErrorMessage(error: unknown, bucket: string) {
     if (bucket === 'avatars' || bucket === 'review-media') return 'Không thể tải ảnh lên lúc này. Hãy đăng nhập lại rồi thử lại.';
     return 'Tài khoản không có quyền upload ảnh ở khu vực quản trị này.';
   }
-  return value.message ? `Upload ảnh thất bại: ${value.message}` : 'Upload ảnh lên Supabase Storage thất bại. Vui lòng thử lại.';
+  return 'Không thể tải ảnh lên kho lưu trữ. Vui lòng thử lại.';
 }

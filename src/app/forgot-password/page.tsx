@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Mail } from 'lucide-react';
 import BrandLogo from '@/components/BrandLogo';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -22,6 +23,7 @@ export default function ForgotPasswordPage() {
         { redirectTo: `${window.location.origin}/reset-password` },
       );
       if (error) {
+        reportError(error, { area: 'auth', operation: 'request-password-reset' });
         const limited = error.message.toLowerCase().includes('rate limit');
         setMessage({
           type: 'error',
@@ -35,7 +37,8 @@ export default function ForgotPasswordPage() {
           text: 'Nếu email thuộc một tài khoản hợp lệ, bạn sẽ nhận được liên kết đặt lại mật khẩu. Hãy kiểm tra cả thư mục Spam.',
         });
       }
-    } catch {
+    } catch (error) {
+      reportError(error, { area: 'auth', operation: 'request-password-reset' });
       setMessage({ type: 'error', text: 'Không thể kết nối dịch vụ xác thực. Vui lòng thử lại.' });
     } finally {
       setBusy(false);

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import type { ExperienceReview, ReviewSummary } from '@/types';
 import { prepareImage, removeStorageImages, uploadPreparedImage, type UploadedImage } from '@/lib/services/imageUploadService';
+import { adminErrorMessage, reportError, userErrorMessage } from '@/lib/reportError';
 
 const STORAGE_KEY = 'photo_reviews_v1';
 const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -11,7 +12,10 @@ function localReviews(): ExperienceReview[] {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) { localStorage.setItem(STORAGE_KEY, '[]'); return []; }
     return JSON.parse(stored) as ExperienceReview[];
-  } catch { return []; }
+  } catch (error) {
+    reportError(error, { area: 'review', operation: 'read-local-fallback' });
+    return [];
+  }
 }
 function save(reviews: ExperienceReview[]) { if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(reviews)); }
 function firstRelation<T>(value: T | T[] | null | undefined): T | undefined { return Array.isArray(value) ? value[0] : value ?? undefined; }
@@ -26,7 +30,10 @@ async function reviewMedia(reviewIds: string[]) {
       data = legacy.data?.map((row) => ({ ...row, thumb_url: null })) ?? null;
       error = legacy.error;
     }
-    if (error) return new Map<string, { thumbnails: string[]; full: string[] }>();
+    if (error) {
+      reportError(error, { area: 'review', operation: 'read-media' });
+      return new Map<string, { thumbnails: string[]; full: string[] }>();
+    }
     const result = new Map<string, { thumbnails: string[]; full: string[] }>();
     (data ?? []).forEach((row) => {
       if (!row.review_id || !row.image_url) return;
@@ -36,18 +43,27 @@ async function reviewMedia(reviewIds: string[]) {
       result.set(row.review_id, current);
     });
     return result;
-  } catch { return new Map<string, { thumbnails: string[]; full: string[] }>(); }
+  } catch (error) {
+    reportError(error, { area: 'review', operation: 'read-media' });
+    return new Map<string, { thumbnails: string[]; full: string[] }>();
+  }
 }
 
 async function reviewAuthors(userIds: string[]) {
   if (!userIds.length) return new Map<string, string>();
   try {
     const { data, error } = await createClient().rpc('get_public_review_authors', { target_ids: userIds });
-    if (error) return new Map<string, string>();
+    if (error) {
+      reportError(error, { area: 'review', operation: 'read-authors' });
+      return new Map<string, string>();
+    }
     const result = new Map<string, string>();
     (data ?? []).forEach((row: { id: string; avatar_url: string | null }) => { if (row.id && row.avatar_url) result.set(row.id, row.avatar_url); });
     return result;
-  } catch { return new Map<string, string>(); }
+  } catch (error) {
+    reportError(error, { area: 'review', operation: 'read-authors' });
+    return new Map<string, string>();
+  }
 }
 
 export async function getReviews(options: { publicOnly?: boolean; featuredFirst?: boolean; limit?: number; offset?: number; bookingIds?: string[] } = {}): Promise<ExperienceReview[]> {
@@ -81,7 +97,10 @@ export async function getReviews(options: { publicOnly?: boolean; featuredFirst?
     }
     failure = error;
   } catch (error) { failure = error; }
-  if (!isDevelopment) throw new Error(failure instanceof Error ? failure.message : 'Không thể tải danh sách đánh giá.');
+  reportError(failure, { area: 'review', operation: 'read-list' });
+  if (!isDevelopment) {
+    throw new Error(userErrorMessage(failure, 'Không thể tải danh sách đánh giá.'));
+  }
   let reviews = localReviews();
   if (options.publicOnly) reviews = reviews.filter((review) => review.is_public);
   reviews.sort((a, b) => options.featuredFirst && a.is_featured !== b.is_featured ? Number(b.is_featured) - Number(a.is_featured) : b.created_at.localeCompare(a.created_at));
@@ -92,10 +111,13 @@ export async function getReviews(options: { publicOnly?: boolean; featuredFirst?
 export async function getPhotographerReviews(): Promise<ExperienceReview[]> {
   const supabase=createClient();
   const {data:{user},error:authError}=await supabase.auth.getUser();
-  if(authError)throw new Error('Không thể xác thực tài khoản thợ chụp.');
+  if(authError){reportError(authError,{area:'review',operation:'authenticate-photographer'});throw new Error('Không thể xác thực tài khoản thợ chụp.');}
   if(!user)throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
   const {data,error}=await supabase.from('reviews').select('id,booking_id,user_id,rating,comment,is_public,is_featured,created_at,updated_at,bookings!inner(customer_name,service_name_snapshot,photographer_id),portfolio_albums(slug)').eq('bookings.photographer_id',user.id).order('created_at',{ascending:false}).limit(100);
-  if(error)throw new Error(error.message||'Không thể tải đánh giá của thợ chụp.');
+  if(error){
+    reportError(error,{area:'review',operation:'read-photographer'});
+    throw new Error(adminErrorMessage(error,'Không thể tải đánh giá của thợ chụp.'));
+  }
   if(!data)return[];
   return data.map((row)=>{const booking=firstRelation(row.bookings);const album=firstRelation(row.portfolio_albums);return{id:row.id,booking_id:row.booking_id,user_id:row.user_id,customer_name:booking?.customer_name??'Khách hàng',rating:row.rating,comment:row.comment,service_title:booking?.service_name_snapshot??'',portfolio_slug:album?.slug,is_public:row.is_public,is_featured:row.is_featured,created_at:row.created_at,updated_at:row.updated_at}}) as ExperienceReview[];
 }
@@ -125,8 +147,9 @@ export async function createReview(input: { bookingId: string; userId?: string; 
       })),
     });
     if (error) {
-      await cleanupUploadedReviewPhotos(uploaded, error.message);
-      throw new Error(error.message);
+      reportError(error, { area: 'review', operation: 'create' });
+      await cleanupUploadedReviewPhotos(uploaded, 'Không thể lưu đánh giá.');
+      throw error;
     }
     if (data) {
       const row = Array.isArray(data) ? data[0] : data;
@@ -139,7 +162,8 @@ export async function createReview(input: { bookingId: string; userId?: string; 
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Không thể lưu đánh giá vào database.';
     if (/not reviewable|completed|booking/i.test(message)) return { success: false, message: 'Chỉ booking đã hoàn thành của bạn mới có thể đánh giá.' };
-    return { success: false, message };
+    reportError(error, { area: 'review', operation: 'create' });
+    return { success: false, message: userErrorMessage(error, 'Không thể gửi đánh giá. Vui lòng thử lại.') };
   }
 }
 
@@ -157,6 +181,7 @@ async function uploadReviewPhotos(files: File[], userId?: string): Promise<Uploa
         const prepared = await prepareImage(selected[index], { maxDimension: 1800, thumbnailDimension: 640, quality: 0.84 });
         uploaded[index] = await uploadPreparedImage(prepared, selected[index].name, { bucket: 'review-media', folder: userId });
       } catch (error) {
+        reportError(error, { area: 'review', operation: 'upload-image' });
         errors.push(error);
       }
     }
@@ -174,8 +199,8 @@ async function cleanupUploadedReviewPhotos(images: UploadedImage[], reason: stri
   try {
     await removeStorageImages('review-media', images.flatMap((image) => [image.path, image.thumbnailPath]));
   } catch (cleanupError) {
-    const suffix = cleanupError instanceof Error ? ` Dọn Storage cũng lỗi: ${cleanupError.message}` : '';
-    throw new Error(`${reason}.${suffix}`);
+    reportError(cleanupError, { area: 'review', operation: 'cleanup-upload' });
+    throw new Error(`${reason} Không thể dọn các file đã tải lên; lỗi đã được ghi nhận.`);
   }
 }
 
@@ -189,13 +214,20 @@ export async function updateReviewModeration(id: string, patch: Partial<Pick<Exp
     else {
       const { data: album, error: albumError } = await supabase.from('portfolio_albums').select('id').eq('slug', patch.portfolio_slug).maybeSingle();
       if (albumError || !album) {
+        if (albumError) reportError(albumError, { area: 'review', operation: 'find-linked-album' });
         if (!isDevelopment) throw new Error('Không tìm thấy bộ ảnh để liên kết.');
       } else dbPatch.portfolio_album_id = album.id;
     }
   }
   const { error } = await supabase.from('reviews').update(dbPatch).eq('id', id);
-  if (error && isDevelopment) save(localReviews().map((review) => review.id === id ? { ...review, ...patch, updated_at: new Date().toISOString() } : review));
-  else if (error) throw new Error(error.message);
+  if (error && isDevelopment) {
+    reportError(error, { area: 'review', operation: 'moderate' });
+    save(localReviews().map((review) => review.id === id ? { ...review, ...patch, updated_at: new Date().toISOString() } : review));
+  }
+  else if (error) {
+    reportError(error, { area: 'review', operation: 'moderate' });
+    throw new Error(adminErrorMessage(error, 'Không thể cập nhật đánh giá.'));
+  }
 }
 
 export async function deleteReview(id: string): Promise<{ cleanupWarning?: string }> {
@@ -204,7 +236,10 @@ export async function deleteReview(id: string): Promise<{ cleanupWarning?: strin
     .from('review_images')
     .select('storage_path,thumb_path')
     .eq('review_id', id);
-  if (manifestError) throw new Error('Không thể đọc danh sách file của đánh giá trước khi xóa.');
+  if (manifestError) {
+    reportError(manifestError, { area: 'review', operation: 'read-delete-manifest' });
+    throw new Error(adminErrorMessage(manifestError, 'Không thể đọc danh sách file của đánh giá trước khi xóa.'));
+  }
 
   const { error } = await supabase.from('reviews').delete().eq('id', id);
   if (!error) {
@@ -212,13 +247,15 @@ export async function deleteReview(id: string): Promise<{ cleanupWarning?: strin
       await removeStorageImages('review-media', (images ?? []).flatMap((image) => [image.storage_path, image.thumb_path]));
       return {};
     } catch (cleanupError) {
-      console.error('[review-cleanup] Database row was deleted but Storage cleanup failed.', cleanupError);
+      reportError(cleanupError, { area: 'review', operation: 'delete-storage' });
       return { cleanupWarning: 'Đã xóa đánh giá, nhưng một số file Storage chưa dọn được. Lỗi đã được ghi nhận.' };
     }
   }
   if (isDevelopment) {
+    reportError(error, { area: 'review', operation: 'delete-row' });
     save(localReviews().filter((review) => review.id !== id));
     return {};
   }
-  throw new Error(error.message);
+  reportError(error, { area: 'review', operation: 'delete-row' });
+  throw new Error(adminErrorMessage(error, 'Không thể xóa đánh giá.'));
 }

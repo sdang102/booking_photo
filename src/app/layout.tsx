@@ -57,7 +57,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${jakarta.variable} ${playfair.variable} h-full antialiased`}
     >
-      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <head><script id="theme-init" dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
       <body className="min-h-full flex flex-col selection:bg-brand selection:text-brand-contrast">
         <AuthProvider>
           {children}

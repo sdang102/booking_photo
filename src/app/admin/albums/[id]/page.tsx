@@ -8,6 +8,7 @@ import { ImagePlus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { prepareImage, removeStorageImages, uploadPreparedImage, type PreparedImage } from '@/lib/services/imageUploadService';
 import { refreshPublicContent } from '@/lib/client/revalidatePublicContent';
+import { adminErrorMessage, reportError } from '@/lib/reportError';
 
 type ImageRow={id:string;image_url:string;storage_path:string|null;thumb_url:string|null;thumb_path:string|null;alt_text:string|null;caption:string|null;width:number|null;height:number|null;display_order:number};
 type UploadState = 'queued' | 'uploading' | 'success' | 'error';
@@ -25,18 +26,14 @@ async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T
 }
 
 function errorMessage(error:unknown){
-  if(error instanceof Error)return error.message;
-  if(error&&typeof error==='object'){
-    const value=error as {message?:unknown;error?:unknown;code?:unknown};
-    return [value.message,value.error,value.code].filter(item=>typeof item==='string').join(' · ')||JSON.stringify(error);
-  }
-  return String(error);
+  reportError(error,{area:'admin-album',operation:'mutation'});
+  return adminErrorMessage(error,'Không thể thực hiện thao tác. Vui lòng thử lại.');
 }
 
 export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   const{id}=use(params);
   const[images,setImages]=useState<ImageRow[]>([]),[pending,setPending]=useState<PendingImage[]>([]),[albumTitle,setAlbumTitle]=useState('');
-  const[msg,setMsg]=useState(''),[busy,setBusy]=useState(false),[deletingId,setDeletingId]=useState(''),[replacingId,setReplacingId]=useState('');
+  const[msg,setMsg]=useState(''),[busy,setBusy]=useState(false),[deletingId,setDeletingId]=useState(''),[replacingId,setReplacingId]=useState(''),[savingId,setSavingId]=useState('');
 
   const load=useCallback(async()=>{
     const client=createClient();
@@ -46,8 +43,8 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
     ]);
     if(imageResult.error&&/thumb_url|thumb_path|column/i.test(imageResult.error.message)){
       const legacy=await client.from('portfolio_images').select('id,image_url,storage_path,alt_text,caption,width,height,display_order').eq('album_id',id).order('display_order');
-      if(legacy.error)setMsg(legacy.error.message);else setImages((legacy.data??[]).map((item)=>({...item,thumb_url:null,thumb_path:null})));
-    }else if(imageResult.error)setMsg(imageResult.error.message);else setImages(imageResult.data??[]);
+      if(legacy.error){reportError(legacy.error,{area:'admin-album',operation:'load-images'});setMsg(adminErrorMessage(legacy.error,'Không thể tải ảnh album.'))}else setImages((legacy.data??[]).map((item)=>({...item,thumb_url:null,thumb_path:null})));
+    }else if(imageResult.error){reportError(imageResult.error,{area:'admin-album',operation:'load-images'});setMsg(adminErrorMessage(imageResult.error,'Không thể tải ảnh album.'))}else setImages(imageResult.data??[]);
     if(albumResult.data)setAlbumTitle(albumResult.data.title);
   },[id]);
 
@@ -59,6 +56,7 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   };
 
   const choose=async(files?:FileList|null)=>{
+    if(busy)return;
     const selected=Array.from(files??[]);if(!selected.length)return;
     setBusy(true);setMsg('');const added:Array<PendingImage|undefined>=[];const failed:string[]=[];
     await runWithConcurrency(selected,3,async(file,index)=>{
@@ -71,7 +69,7 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   };
 
   const add=async(event:FormEvent)=>{
-    event.preventDefault();if(!pending.length)return setMsg('Vui lòng chọn ít nhất một ảnh từ máy.');
+    event.preventDefault();if(busy)return;if(!pending.length)return setMsg('Vui lòng chọn ít nhất một ảnh từ máy.');
     setBusy(true);setMsg('');const client=createClient();const failed:PendingImage[]=[];const errors:string[]=[];let added=0;
     try{
       const queue = pending.map((item) => ({ ...item, state: 'queued' as UploadState, progress: 0, error: undefined }));
@@ -82,7 +80,7 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
           const uploaded=await uploadPreparedImage(item.prepared,item.name,{bucket:'portfolio',folder:`albums/${id}`});
           setPending((current) => current.map((entry) => entry.key === item.key ? { ...entry, progress: 75 } : entry));
           const{error}=await client.from('portfolio_images').insert({album_id:id,image_url:uploaded.url,storage_path:uploaded.path,thumb_url:uploaded.thumbnailUrl,thumb_path:uploaded.thumbnailPath,width:uploaded.width,height:uploaded.height,alt_text:item.name,display_order:images.length+index});
-          if(error){await removeStorageImages('portfolio',[uploaded.path,uploaded.thumbnailPath]);throw new Error(/thumb_url|thumb_path|column/i.test(error.message)?'Hãy chạy migration Phase 2 trước khi thêm ảnh album.':error.message)}
+          if(error){await removeStorageImages('portfolio',[uploaded.path,uploaded.thumbnailPath]);reportError(error,{area:'admin-album',operation:'add-image'});throw new Error(/thumb_url|thumb_path|column/i.test(error.message)?'Hãy chạy migration Phase 2 trước khi thêm ảnh album.':adminErrorMessage(error,'Không thể thêm ảnh vào album.'))}
           added++; URL.revokeObjectURL(item.previewUrl);
           setPending((current) => current.map((entry) => entry.key === item.key ? { ...entry, state: 'success', progress: 100 } : entry));
         } catch (error) {
@@ -97,29 +95,34 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   };
 
   const remove=async(row:ImageRow)=>{
+    if(deletingId)return;
     if(!confirm(`Xóa ảnh “${row.alt_text||'không có tiêu đề'}” khỏi album?`))return;
     setDeletingId(row.id);setMsg('');const client=createClient();
     try{
       const{error}=await client.from('portfolio_images').delete().eq('id',row.id);if(error)throw error;
       setImages(current=>current.filter(item=>item.id!==row.id));
       let successMessage='Đã xóa ảnh khỏi album.';
-      try{await removeStorageImages('portfolio',[row.storage_path,row.thumb_path])}catch(cleanupError){console.error('[album-image-cleanup] Database row was deleted but Storage cleanup failed.',cleanupError);successMessage='Đã xóa ảnh khỏi album, nhưng file Storage cũ chưa dọn được. Lỗi đã được ghi nhận.'}
+      try{await removeStorageImages('portfolio',[row.storage_path,row.thumb_path])}catch(cleanupError){reportError(cleanupError,{area:'admin-album',operation:'delete-image-storage'});successMessage='Đã xóa ảnh khỏi album, nhưng file Storage cũ chưa dọn được. Lỗi đã được ghi nhận.'}
       await publish(successMessage);
     }catch(error){setMsg(errorMessage(error))}finally{setDeletingId('')}
   };
 
   const update=async(row:ImageRow)=>{
-    setMsg('');const{error}=await createClient().from('portfolio_images').update({alt_text:row.alt_text,caption:row.caption,display_order:row.display_order}).eq('id',row.id);
-    if(error)setMsg(error.message);else{await load();await publish('Đã lưu thông tin ảnh.')}
+    if(savingId)return;
+    setSavingId(row.id);setMsg('');
+    try{
+      const{error}=await createClient().from('portfolio_images').update({alt_text:row.alt_text,caption:row.caption,display_order:row.display_order}).eq('id',row.id);
+      if(error){reportError(error,{area:'admin-album',operation:'update-image'});setMsg(adminErrorMessage(error,'Không thể lưu thông tin ảnh.'))}else{await load();await publish('Đã lưu thông tin ảnh.')}
+    }finally{setSavingId('')}
   };
 
   const replace=async(row:ImageRow,file?:File)=>{
-    if(!file)return;setReplacingId(row.id);setMsg('');
+    if(!file||replacingId)return;setReplacingId(row.id);setMsg('');
     try{
       const prepared=await prepareImage(file,{thumbnailDimension:640});const client=createClient();
       const uploaded=await uploadPreparedImage(prepared,file.name,{bucket:'portfolio',folder:`albums/${id}`});
       const{error}=await client.from('portfolio_images').update({image_url:uploaded.url,storage_path:uploaded.path,thumb_url:uploaded.thumbnailUrl,thumb_path:uploaded.thumbnailPath,width:uploaded.width,height:uploaded.height}).eq('id',row.id);
-      if(error){await removeStorageImages('portfolio',[uploaded.path,uploaded.thumbnailPath]);setMsg(/thumb_url|thumb_path|column/i.test(error.message)?'Hãy chạy migration Phase 2 trước khi thay ảnh album.':error.message)}else{let successMessage='Đã thay ảnh mới.';try{await removeStorageImages('portfolio',[row.storage_path,row.thumb_path])}catch(cleanupError){console.error('[album-image-replace] Database points to the new image but old Storage cleanup failed.',cleanupError);successMessage='Đã thay ảnh mới, nhưng file cũ chưa dọn được. Lỗi đã được ghi nhận.'}setImages(current=>current.map(item=>item.id===row.id?{...item,image_url:uploaded.url,storage_path:uploaded.path,thumb_url:uploaded.thumbnailUrl??null,thumb_path:uploaded.thumbnailPath??null,width:uploaded.width,height:uploaded.height}:item));await publish(successMessage)}
+      if(error){await removeStorageImages('portfolio',[uploaded.path,uploaded.thumbnailPath]);reportError(error,{area:'admin-album',operation:'replace-image-row'});setMsg(/thumb_url|thumb_path|column/i.test(error.message)?'Hãy chạy migration Phase 2 trước khi thay ảnh album.':adminErrorMessage(error,'Không thể thay ảnh album.'))}else{let successMessage='Đã thay ảnh mới.';try{await removeStorageImages('portfolio',[row.storage_path,row.thumb_path])}catch(cleanupError){reportError(cleanupError,{area:'admin-album',operation:'replace-image-cleanup'});successMessage='Đã thay ảnh mới, nhưng file cũ chưa dọn được. Lỗi đã được ghi nhận.'}setImages(current=>current.map(item=>item.id===row.id?{...item,image_url:uploaded.url,storage_path:uploaded.path,thumb_url:uploaded.thumbnailUrl??null,thumb_path:uploaded.thumbnailPath??null,width:uploaded.width,height:uploaded.height}:item));await publish(successMessage)}
     }catch(error){setMsg(error instanceof Error?error.message:'Không thể thay ảnh.')}finally{setReplacingId('')}
   };
 
@@ -134,7 +137,7 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
     </form>
 
     {msg&&<p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-700">{msg}</p>}
-    <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{images.map((row,index)=><article key={row.id} className="rounded-2xl border border-sky-200 bg-white p-4"><div className="relative h-52 overflow-hidden rounded-xl"><Image src={row.image_url} alt={row.alt_text??''} fill unoptimized={row.image_url.startsWith('data:')} sizes="(max-width:768px) 100vw, 33vw" className="object-cover"/></div><label className="mt-3 block text-xs font-bold">Alt text<input value={row.alt_text??''} onChange={event=>setImages(value=>value.map(item=>item.id===row.id?{...item,alt_text:event.target.value}:item))} placeholder="Mô tả ảnh cho SEO" className="booking-input mt-1"/></label><label className="mt-2 block text-xs font-bold">Chú thích<textarea value={row.caption??''} onChange={event=>setImages(value=>value.map(item=>item.id===row.id?{...item,caption:event.target.value}:item))} placeholder="Chú thích hiển thị" className="booking-input mt-1 min-h-20"/></label><label className="mt-2 block text-xs font-bold">Thứ tự hiển thị<input type="number" min="0" value={row.display_order??index} onChange={event=>setImages(value=>value.map(item=>item.id===row.id?{...item,display_order:Number(event.target.value)}:item))} className="booking-input mt-1"/></label><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={()=>update(row)} className="sky-button flex min-h-10 items-center justify-center gap-2 rounded-xl"><Save className="h-4 w-4"/>Lưu sửa đổi</button><label className="flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-sky-300 text-xs font-bold text-sky-800"><RefreshCw className="h-4 w-4"/>{replacingId===row.id?'Đang thay…':'Thay ảnh'}<input type="file" accept="image/*" disabled={Boolean(replacingId)} onChange={event=>{void replace(row,event.target.files?.[0]);event.target.value=''}} className="sr-only"/></label><button type="button" disabled={deletingId===row.id} onClick={()=>remove(row)} className="col-span-2 flex min-h-10 items-center justify-center gap-2 rounded-xl bg-rose-50 px-4 font-bold text-rose-700 disabled:opacity-50"><Trash2 className="h-4 w-4"/>{deletingId===row.id?'Đang xóa…':'Xóa ảnh khỏi album'}</button></div></article>)}</div>
+    <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{images.map((row,index)=><article key={row.id} className="rounded-2xl border border-sky-200 bg-white p-4"><div className="relative h-52 overflow-hidden rounded-xl"><Image src={row.image_url} alt={row.alt_text??''} fill unoptimized={row.image_url.startsWith('data:')} sizes="(max-width:768px) 100vw, 33vw" className="object-cover"/></div><label className="mt-3 block text-xs font-bold">Alt text<input value={row.alt_text??''} onChange={event=>setImages(value=>value.map(item=>item.id===row.id?{...item,alt_text:event.target.value}:item))} placeholder="Mô tả ảnh cho SEO" className="booking-input mt-1"/></label><label className="mt-2 block text-xs font-bold">Chú thích<textarea value={row.caption??''} onChange={event=>setImages(value=>value.map(item=>item.id===row.id?{...item,caption:event.target.value}:item))} placeholder="Chú thích hiển thị" className="booking-input mt-1 min-h-20"/></label><label className="mt-2 block text-xs font-bold">Thứ tự hiển thị<input type="number" min="0" value={row.display_order??index} onChange={event=>setImages(value=>value.map(item=>item.id===row.id?{...item,display_order:Number(event.target.value)}:item))} className="booking-input mt-1"/></label><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={Boolean(savingId)} onClick={()=>update(row)} className="sky-button flex min-h-10 items-center justify-center gap-2 rounded-xl disabled:cursor-wait disabled:opacity-60"><Save className="h-4 w-4"/>{savingId===row.id?'Đang lưu…':'Lưu sửa đổi'}</button><label className="flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-sky-300 text-xs font-bold text-sky-800"><RefreshCw className="h-4 w-4"/>{replacingId===row.id?'Đang thay…':'Thay ảnh'}<input type="file" accept="image/*" disabled={Boolean(replacingId)} onChange={event=>{void replace(row,event.target.files?.[0]);event.target.value=''}} className="sr-only"/></label><button type="button" disabled={deletingId===row.id} onClick={()=>remove(row)} className="col-span-2 flex min-h-10 items-center justify-center gap-2 rounded-xl bg-rose-50 px-4 font-bold text-rose-700 disabled:opacity-50"><Trash2 className="h-4 w-4"/>{deletingId===row.id?'Đang xóa…':'Xóa ảnh khỏi album'}</button></div></article>)}</div>
     {!images.length&&<div className="mt-6 rounded-2xl border border-dashed border-sky-300 bg-white p-10 text-center text-sm text-slate-500">Album chưa có ảnh. Hãy chọn một hoặc nhiều ảnh ở phía trên.</div>}
   </div>;
 }

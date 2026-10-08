@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import { uploadImageFile } from '@/lib/services/imageUploadService';
 import { refreshPublicContent } from '@/lib/client/revalidatePublicContent';
 import { deletePortfolioAlbum } from '@/lib/services/contentDeletionService';
+import { adminErrorMessage, reportError } from '@/lib/reportError';
 
 type Row=Record<string,unknown>&{id?:string};
 type Field={key:string;label:string;kind?:'number'|'textarea'|'checkbox'|'json'|'image'|'category';required?:boolean};
@@ -33,7 +34,7 @@ configs.portfolio = configs.albums;
 export default function AdminCrudPanel({section}:{section:string}){
   const config=configs[section];
   const[rows,setRows]=useState<Row[]>([]);const[categories,setCategories]=useState<Array<{id:string;name:string}>>([]);const[edit,setEdit]=useState<Row|null>(null);const[msg,setMsg]=useState('');const[deletingId,setDeletingId]=useState('');const[page,setPage]=useState(0);const[hasMore,setHasMore]=useState(false);
-  const load=useCallback(async(pageNumber=0)=>{if(!config)return;const columns=['id',...config.fields.map(field=>field.key),config.archive].filter((value,index,list):value is string=>Boolean(value)&&list.indexOf(value)===index).join(',');let query=createClient().from(config.table).select(columns).order('display_order',{ascending:true});query=config.singleton?query.limit(1):query.range(pageNumber*PAGE_SIZE,(pageNumber+1)*PAGE_SIZE-1);const{data,error}=await query;if(error)setMsg(error.message);else{const next=(data??[])as unknown as Row[];setRows(current=>pageNumber===0?next:[...current,...next]);setPage(pageNumber);setHasMore(!config.singleton&&next.length===PAGE_SIZE)}},[config]);
+  const load=useCallback(async(pageNumber=0)=>{if(!config)return;const columns=['id',...config.fields.map(field=>field.key),config.archive].filter((value,index,list):value is string=>Boolean(value)&&list.indexOf(value)===index).join(',');let query=createClient().from(config.table).select(columns).order('display_order',{ascending:true});query=config.singleton?query.limit(1):query.range(pageNumber*PAGE_SIZE,(pageNumber+1)*PAGE_SIZE-1);const{data,error}=await query;if(error)setMsg(friendlyDatabaseError(error));else{const next=(data??[])as unknown as Row[];setRows(current=>pageNumber===0?next:[...current,...next]);setPage(pageNumber);setHasMore(!config.singleton&&next.length===PAGE_SIZE)}},[config]);
   useEffect(()=>{void load()},[load]);
   useEffect(()=>{if(config?.fields.some(field=>field.kind==='category'))void createClient().from('categories').select('id,name').eq('is_active',true).order('display_order').then(({data})=>setCategories(data??[]))},[config]);
   if(!config)return null;
@@ -84,10 +85,11 @@ export default function AdminCrudPanel({section}:{section:string}){
 
 function rowLabel(row:Row){return String(row.name??row.title??row.question??row.section_key??row.website_name??'Mục này')}
 function friendlyDatabaseError(error:unknown){
+  reportError(error,{area:'admin-crud',operation:'database-mutation'});
   const value=error&&typeof error==='object'?error as {code?:string;message?:string}:{};
   if(value.code==='23503')return 'Không thể xóa vì mục này đang được booking hoặc dữ liệu khác sử dụng. Hãy dùng chức năng Ẩn.';
   if(value.code==='42501')return 'Tài khoản hiện tại không có quyền xóa mục này.';
-  return `Không thể thực hiện thao tác: ${value.message||'Vui lòng thử lại.'}`;
+  return adminErrorMessage(error,'Không thể thực hiện thao tác. Vui lòng thử lại.');
 }
 
 function FieldEditor({section,field,value,categories,onChange,onPathChange,onError}:{section:string;field:Field;value:unknown;categories:Array<{id:string;name:string}>;onChange:(value:unknown)=>void;onPathChange:(path:string)=>void;onError:(message:string)=>void}){

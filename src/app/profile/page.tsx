@@ -34,6 +34,7 @@ export default function Profile() {
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (saving) return;
     const data = new FormData(event.currentTarget);
     setSaving(true);
     setMessage(null);
@@ -106,6 +107,7 @@ export default function Profile() {
 
   const savePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (passwordBusy) return;
     const data = new FormData(event.currentTarget);
     const current = String(data.get('currentPassword') || '');
     const next = String(data.get('newPassword') || '');

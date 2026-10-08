@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { hasRole, normalizeRoles, rolesFromAuthMetadata } from '@/lib/auth/permissions';
 import { normalizeVietnameseMobile, VIETNAMESE_MOBILE_ERROR } from '@/lib/phone';
 import { prepareImage, removeStorageImages, uploadPreparedImage } from '@/lib/services/imageUploadService';
+import { reportError, userErrorMessage } from '@/lib/reportError';
 
 interface AuthResult { success: boolean; roles?: AppRole[]; message?: string; requiresEmailConfirmation?: boolean }
 interface AuthContextType {
@@ -42,7 +43,7 @@ function authErrorMessage(error?: { message?: string; code?: string }) {
   if (code === 'email_provider_disabled') return 'Đăng ký bằng email đang bị tắt trên Supabase.';
   if (code === 'weak_password' || value.includes('password')) return 'Mật khẩu chưa hợp lệ. Vui lòng dùng ít nhất 6 ký tự.';
   if (code === 'email_address_invalid' || (value.includes('email') && value.includes('invalid'))) return 'Địa chỉ email chưa hợp lệ.';
-  return message || 'Không thể xác thực tài khoản. Vui lòng thử lại.';
+  return userErrorMessage(error, 'Không thể xác thực tài khoản. Vui lòng thử lại.');
 }
 
 async function profileFromSupabase(authUser: { id:string; email?:string; user_metadata?:Record<string,unknown>; app_metadata?:Record<string,unknown> }): Promise<UserProfile> {
@@ -67,12 +68,16 @@ async function profileFromSupabase(authUser: { id:string; email?:string; user_me
         roles: normalizeRoles(row.roles),
       };
     } else {
+      if (contextError) reportError(contextError, { area: 'auth', operation: 'load-profile-context' });
       // Backward-compatible while the Phase 1 migration is waiting to be applied.
       const [{ data, error: profileError }, { data: isAdmin, error: adminError }, { data: isPhotographer, error: photographerError }] = await Promise.all([
         supabase.from('profiles').select('full_name,email,phone,avatar_url,avatar_path').eq('id', authUser.id).maybeSingle(),
         supabase.rpc('has_role', { required_role: 'admin' }),
         supabase.rpc('has_role', { required_role: 'photographer' }),
       ]);
+      if (profileError) reportError(profileError, { area: 'auth', operation: 'load-profile-row' });
+      if (adminError) reportError(adminError, { area: 'auth', operation: 'load-admin-role' });
+      if (photographerError) reportError(photographerError, { area: 'auth', operation: 'load-photographer-role' });
       if (profileError && adminError && photographerError) throw new Error('Không thể tải hồ sơ và quyền tài khoản.');
       const dbRoles: AppRole[] = [isAdmin && 'admin', isPhotographer && 'photographer'].filter((role): role is AppRole => Boolean(role));
       profile = { id:authUser.id,email:authUser.email || data?.email || '',full_name:data?.full_name || String(authUser.user_metadata?.full_name || 'Khách hàng'),phone:data?.phone || String(authUser.user_metadata?.phone || ''),avatar_url:data?.avatar_url || undefined,avatar_path:data?.avatar_path || undefined,roles:dbRoles.length?normalizeRoles(dbRoles):rolesFromAuthMetadata(authUser.app_metadata,authUser.user_metadata) };
@@ -117,8 +122,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!active || currentSyncId !== syncId) return;
         setUser(profile);
         setAuthError('');
-      } catch {
+      } catch (error) {
         if (!active || currentSyncId !== syncId) return;
+        reportError(error, { area: 'auth', operation: 'load-profile' });
         setUser((current) => current ?? {
           id: authUser.id,
           email: authUser.email || '',
@@ -141,13 +147,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return;
       if (error) {
+        reportError(error, { area: 'auth', operation: 'get-session' });
         setAuthError('Không thể kiểm tra phiên đăng nhập. Vui lòng kiểm tra kết nối và thử lại.');
         setIsLoading(false);
         return;
       }
       void syncUser(data.session?.user ?? null);
-    }).catch(() => {
+    }).catch((error) => {
       if (!active) return;
+      reportError(error, { area: 'auth', operation: 'get-session' });
       setAuthError('Không thể kiểm tra phiên đăng nhập. Vui lòng kiểm tra kết nối và thử lại.');
       setIsLoading(false);
     });
@@ -164,11 +172,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const supabase = createClient();
       const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
-      if (error || !data.user) { setIsLoading(false); return { success:false, message:authErrorMessage(error ?? undefined) }; }
+      if (error || !data.user) {
+        reportError(error, { area: 'auth', operation: 'login' });
+        setIsLoading(false); return { success:false, message:authErrorMessage(error ?? undefined) };
+      }
       const profile = await profileFromSupabase(data.user);
       setUser(profile); setIsLoading(false);
       return { success:true, roles:profile.roles };
     } catch (error) {
+      reportError(error, { area: 'auth', operation: 'login' });
       setIsLoading(false);
       return { success:false, message:authErrorMessage(error instanceof Error ? error : undefined) };
     }
@@ -190,6 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const supabase = createClient();
       const { data, error } = await supabase.auth.signUp({ email: cleanEmail, password, options: { data: { full_name: fullName.trim(), phone:cleanPhone }, emailRedirectTo:`${window.location.origin}/login?confirmed=1` } });
       if (error || !data.user) {
+        reportError(error, { area: 'auth', operation: 'register' });
         setIsLoading(false);
         return { success: false, message: authErrorMessage(error ?? undefined) };
       }
@@ -201,14 +214,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setIsLoading(false);
       return { success:true, roles:profile.roles, requiresEmailConfirmation:!data.session, message:data.session ? 'Đăng ký thành công.' : 'Đã tạo tài khoản. Supabase vừa gửi email xác nhận; hãy bấm liên kết trong email rồi đăng nhập.' };
-    } catch {
+    } catch (error) {
+      reportError(error, { area: 'auth', operation: 'register' });
       setIsLoading(false);
       return { success:false, message:'Không thể kết nối Supabase. Vui lòng thử lại.' };
     }
   };
 
   const logout = async () => {
-    try { await createClient().auth.signOut(); } catch { /* Local logout still succeeds. */ }
+    try { await createClient().auth.signOut(); }
+    catch (error) { reportError(error, { area: 'auth', operation: 'logout' }); }
     profileCache = null; profileRequest = null; setUser(null);
   };
 
@@ -217,8 +232,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if(!cleanEmail)return{success:false,message:'Hãy nhập email cần xác nhận.'};
     try{
       const{error}=await createClient().auth.resend({type:'signup',email:cleanEmail,options:{emailRedirectTo:`${window.location.origin}/login?confirmed=1`}});
+      if(error)reportError(error,{area:'auth',operation:'resend-confirmation'});
       return error?{success:false,message:authErrorMessage(error)}:{success:true,message:'Đã gửi lại email xác nhận. Hãy kiểm tra cả hộp thư Spam.'};
-    }catch{return{success:false,message:'Không thể gửi lại email xác nhận lúc này.'}}
+    }catch(error){reportError(error,{area:'auth',operation:'resend-confirmation'});return{success:false,message:'Không thể gửi lại email xác nhận lúc này.'}}
   };
 
   const updateProfile = async (fullName: string, phone: string): Promise<AuthResult> => {
@@ -231,14 +247,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const supabase=createClient();
       const authChanges={data:{full_name:cleanName,phone:cleanPhone}};
       const{error:authError}=await supabase.auth.updateUser(authChanges);
-      if(authError)return{success:false,message:authErrorMessage(authError)};
+      if(authError){reportError(authError,{area:'auth',operation:'update-profile-auth'});return{success:false,message:authErrorMessage(authError)}};
       const{error:profileError}=await supabase.from('profiles').update({full_name:cleanName,phone:cleanPhone}).eq('id',user.id);
-      if(profileError)return{success:false,message:profileError.message||'Không thể lưu hồ sơ.'};
+      if(profileError){reportError(profileError,{area:'auth',operation:'update-profile-row'});return{success:false,message:userErrorMessage(profileError,'Không thể lưu hồ sơ.')}};
       const nextUser={...user,full_name:cleanName,phone:cleanPhone};
       setUser(nextUser);
       profileCache={userId:user.id,value:nextUser,expiresAt:Date.now()+PROFILE_CACHE_MS};
       return{success:true,message:'Đã cập nhật hồ sơ thành công.'};
     }catch(error){
+      reportError(error,{area:'auth',operation:'update-profile'});
       return{success:false,message:authErrorMessage(error instanceof Error?error:undefined)};
     }
   };
@@ -247,20 +264,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return { success: false, message: 'Vui lòng đăng nhập lại để đổi ảnh đại diện.' };
     try {
       const supabase = createClient();
-      const { data: previousRow } = await supabase.from('profiles').select('avatar_path').eq('id', user.id).maybeSingle();
+      const { data: previousRow, error: previousError } = await supabase.from('profiles').select('avatar_path').eq('id', user.id).maybeSingle();
+      if (previousError) reportError(previousError, { area: 'auth', operation: 'read-previous-avatar' });
       const previousAvatarPath = previousRow?.avatar_path || user.avatar_path;
       const prepared = await prepareImage(file, { maxDimension: 512, quality: 0.82 });
       const uploaded = await uploadPreparedImage(prepared, file.name, { bucket: 'avatars', folder: user.id });
       const { error } = await supabase.from('profiles').update({ avatar_url: uploaded.url, avatar_path: uploaded.path }).eq('id', user.id);
       if (error) {
+        reportError(error, { area: 'auth', operation: 'update-avatar-row' });
         await removeStorageImages('avatars', [uploaded.path]);
-        return { success: false, message: error.message || 'Không thể lưu ảnh đại diện.' };
+        return { success: false, message: userErrorMessage(error, 'Không thể lưu ảnh đại diện.') };
       }
       let cleanupWarning = '';
       if (previousAvatarPath && previousAvatarPath !== uploaded.path) {
         try { await removeStorageImages('avatars', [previousAvatarPath]); }
         catch (cleanupError) {
-          console.error('[avatar-cleanup] Profile was updated but the previous Storage object could not be removed.', cleanupError);
+          reportError(cleanupError, { area: 'auth', operation: 'cleanup-avatar' });
           cleanupWarning = ' Ảnh cũ chưa dọn được khỏi Storage; lỗi đã được ghi nhận.';
         }
       }
@@ -269,7 +288,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profileCache = { userId: user.id, value: nextUser, expiresAt: Date.now() + PROFILE_CACHE_MS };
       return { success: true, message: `Đã cập nhật ảnh đại diện.${cleanupWarning}` };
     } catch (error) {
-      return { success: false, message: error instanceof Error ? error.message : 'Không thể tải ảnh đại diện.' };
+      reportError(error, { area: 'auth', operation: 'update-avatar' });
+      return { success: false, message: userErrorMessage(error, 'Không thể tải ảnh đại diện.') };
     }
   };
 
@@ -279,10 +299,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const supabase = createClient();
       const { error: verifyError } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword });
-      if (verifyError) return { success: false, message: 'Mật khẩu hiện tại không đúng.' };
+      if (verifyError) {
+        reportError(verifyError, { area: 'auth', operation: 'verify-current-password' });
+        return { success: false, message: 'Mật khẩu hiện tại không đúng.' };
+      }
       const { error } = await supabase.auth.updateUser({ password: nextPassword });
+      if (error) reportError(error, { area: 'auth', operation: 'change-password' });
       return error ? { success: false, message: authErrorMessage(error) } : { success: true, message: 'Đã đổi mật khẩu thành công.' };
     } catch (error) {
+      reportError(error, { area: 'auth', operation: 'change-password' });
       return { success: false, message: authErrorMessage(error instanceof Error ? error : undefined) };
     }
   };

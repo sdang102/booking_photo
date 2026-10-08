@@ -3,6 +3,7 @@ import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 import { unstable_cache } from 'next/cache';
 import { getSupabasePublicEnv } from '@/lib/supabase/env';
+import { reportError } from '@/lib/reportError';
 
 export interface PublicSiteSettings {
   websiteName: string;
@@ -51,7 +52,10 @@ async function loadPublicSiteSettings(): Promise<PublicSiteSettings> {
       .limit(1)
       .maybeSingle();
 
-    if (error || !data) return SITE_SETTINGS_FALLBACK;
+    if (error || !data) {
+      if (error) reportError(error, { area: 'site-settings', operation: 'read-public' });
+      return SITE_SETTINGS_FALLBACK;
+    }
 
     return {
       websiteName: data.website_name?.trim() || SITE_SETTINGS_FALLBACK.websiteName,
@@ -68,7 +72,8 @@ async function loadPublicSiteSettings(): Promise<PublicSiteSettings> {
         data.seo_description?.trim() || SITE_SETTINGS_FALLBACK.seoDescription,
       ogImageUrl: data.og_image_url?.trim() || SITE_SETTINGS_FALLBACK.ogImageUrl,
     };
-  } catch {
+  } catch (error) {
+    reportError(error, { area: 'site-settings', operation: 'read-public' });
     return SITE_SETTINGS_FALLBACK;
   }
 }
@@ -80,11 +85,15 @@ async function loadPublicAlbumSitemapRows() {
       .select('slug,updated_at')
       .eq('is_public', true)
       .order('updated_at', { ascending: false });
-    if (error || !data) return [];
+    if (error || !data) {
+      if (error) reportError(error, { area: 'sitemap', operation: 'read-albums' });
+      return [];
+    }
     return data
       .filter((row) => typeof row.slug === 'string' && row.slug.length > 0)
       .map((row) => ({ slug: String(row.slug), updatedAt: String(row.updated_at) }));
-  } catch {
+  } catch (error) {
+    reportError(error, { area: 'sitemap', operation: 'read-albums' });
     return [];
   }
 }

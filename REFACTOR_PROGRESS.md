@@ -114,7 +114,7 @@ Evidence before deletion/refactor:
 - Repo-wide `rg` (excluding `node_modules`, `.git`, and the user-owned untracked audit report) found no executable, test, script, dynamic-import, or string reference to `src/lib/services/contentService.ts`; the service was deleted.
 - `updateBookingStatus` had one caller only, `src/app/photographer/bookings/[id]/page.tsx`, and it always passed `photographer`; there was no admin caller in `src`, `scripts`, or tests. The unused admin update branch and actor parameter were removed while keeping the `photographer_advance_booking` RPC path unchanged.
 - `mapReview` was already typed with `ReviewRow` and contained no `any`/`as any`; no behavior change was needed there.
-- The only remaining `console` usage in application source is the intentional development-only logger (`src/lib/devLogger.ts`), which is still used for recoverable Supabase diagnostics. CLI `console` output in migration/test scripts is intentional user-facing script output and was retained.
+- Recoverable diagnostics now flow through the development-only `src/lib/reportError.ts` integration point. CLI `console` output in migration/test scripts remains intentional user-facing script output.
 
 Implemented:
 
@@ -185,7 +185,7 @@ Lệnh đề xuất: `supabase db push` (hoặc chạy các file trên trong Sup
 
 - Chưa xóa `can()` trong permissions, motion config/data attributes, LocalStorage mock fallback, `supabase/legacy/*`, bảng payments, migration cũ; đây là các mục được yêu cầu giữ nguyên.
 - Chưa gộp `/admin/portfolio` và `/admin/albums`, hoặc `MyBookingsModal` với `/my-bookings`, vì cần kiểm tra nghiệp vụ/UI riêng trước khi đổi.
-- `src/lib/devLogger.ts` và console trong CLI scripts là logging có chủ đích, không phải log debug thừa.
+- `src/lib/reportError.ts` là điểm gom lỗi phát triển có chủ đích; console trong CLI scripts vẫn là output vận hành.
 - Nên kiểm chứng index bổ sung trước khi tạo bằng `EXPLAIN (ANALYZE, BUFFERS) ...` trên bản sao dữ liệu thật; không tự tạo trong run này.
 - Nếu cần bảo mật media tuyệt đối, chuyển `review-media` private và dùng signed URL; cân nhắc rate limit cho RPC/upload.
 - Kế hoạch tách `globals.css` sau: nhóm token/màu và typography; nhóm layout shell/navigation; nhóm booking/modal; nhóm portfolio/album; nhóm reviews; nhóm motion/utilities. Chỉ tách sau khi có visual regression để tránh thay đổi cascade.

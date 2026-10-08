@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { adminErrorMessage, reportError, userErrorMessage } from '@/lib/reportError';
 import type { BookingPhotoRecord, BookingStatus, PublicScheduleItem } from '@/types';
 import { ACTIVE_BOOKING_STATUSES, BOOKING_SELECT, mapBookingRow, TABLE_NAME } from './bookingShared';
 
@@ -8,10 +9,6 @@ interface BookingQueryOptions {
   statuses?: BookingStatus[];
   limit?: number;
   offset?: number;
-}
-
-function bookingReadError(error: unknown, fallback: string) {
-  return new Error(error instanceof Error && error.message ? error.message : fallback);
 }
 
 export async function getReliableAllBookings({ fromDate, toDate, statuses, limit = 200, offset = 0 }: BookingQueryOptions = {}): Promise<BookingPhotoRecord[]> {
@@ -24,7 +21,8 @@ export async function getReliableAllBookings({ fromDate, toDate, statuses, limit
     if (error) throw error;
     return (data ?? []).map(mapBookingRow);
   } catch (error) {
-    throw bookingReadError(error, 'Không thể tải danh sách booking.');
+    reportError(error, { area: 'booking', operation: 'read-all' });
+    throw new Error(adminErrorMessage(error, 'Không thể tải danh sách booking.'));
   }
 }
 
@@ -45,7 +43,8 @@ export async function getReliableUserBookings(userId?: string, email?: string, {
     if (emailError) throw emailError;
     return (emailData ?? []).map(mapBookingRow);
   } catch (error) {
-    throw bookingReadError(error, 'Không thể tải lịch chụp của bạn.');
+    reportError(error, { area: 'booking', operation: 'read-user' });
+    throw new Error(userErrorMessage(error, 'Không thể tải lịch chụp của bạn.'));
   }
 }
 
@@ -62,6 +61,7 @@ export async function getReliablePublicSchedule(): Promise<PublicScheduleItem[]>
       location_type: (row.location_type === 'outdoor' ? 'outdoor' : 'studio') as 'studio' | 'outdoor',
     }));
   } catch (error) {
-    throw bookingReadError(error, 'Không thể tải lịch trống.');
+    reportError(error, { area: 'booking', operation: 'read-public-schedule' });
+    throw new Error(userErrorMessage(error, 'Không thể tải lịch trống.'));
   }
 }

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import type { BookingFormData, BookingPhotoRecord, BookingStatus } from '@/types';
 import { normalizeVietnameseMobile, VIETNAMESE_MOBILE_ERROR } from '@/lib/phone';
-import { devWarn } from '@/lib/devLogger';
+import { reportError, userErrorMessage } from '@/lib/reportError';
 import {
   BOOKING_SELECT,
   getLocalBookings,
@@ -23,10 +23,12 @@ export async function createBookingPhoto(
       target_start_time: startTime,
       target_photographer_id: null,
     });
+    if (slotError) reportError(slotError, { area: 'booking', operation: 'check-slot' });
     if (!slotError && slotAvailable === false) {
       return { success: false, message: `Khung giờ ${booking.booking_time} vào ngày ${booking.booking_date} đã có người giữ chỗ, bị thợ khóa hoặc không còn hợp lệ. Vui lòng chọn giờ khác.` };
     }
-  } catch {
+  } catch (error) {
+    reportError(error, { area: 'booking', operation: 'check-slot' });
     // The insert-side trigger remains authoritative while this RPC is pending deployment.
   }
   const payload = {
@@ -48,17 +50,18 @@ export async function createBookingPhoto(
     const { data, error } = await createClient().from(TABLE_NAME).insert([payload]).select(BOOKING_SELECT).single();
     if (!error && data) return { success: true, data: mapBookingRow(data) };
     if (error) {
+      reportError(error, { area: 'booking', operation: 'create' });
       const isScheduleConflict = ['23P01', '23514', 'P0001'].includes(error.code ?? '') || /overlap|unavailable|past|working hours/i.test(error.message);
       return {
         success: false,
         message: isScheduleConflict
           ? 'Một khách khác vừa giữ khung giờ này hoặc thợ đã khóa lịch. Dữ liệu lịch đã được cập nhật, vui lòng chọn giờ khác.'
-          : `Không thể lưu booking: ${error.message}`,
+          : userErrorMessage(error, 'Không thể lưu yêu cầu đặt lịch. Vui lòng thử lại.'),
       };
     }
   } catch (err) {
-    devWarn('Error inserting booking into Supabase:', err);
-    return { success: false, message: 'Không thể kết nối database để giữ chỗ. Vui lòng kiểm tra mạng và thử lại.' };
+    reportError(err, { area: 'booking', operation: 'create' });
+    return { success: false, message: userErrorMessage(err, 'Không thể lưu yêu cầu đặt lịch. Vui lòng thử lại.') };
   }
   return { success: false, message: 'Không thể lưu booking vào database. Vui lòng thử lại.' };
 }
@@ -66,9 +69,10 @@ export async function createBookingPhoto(
 export async function updateBookingStatus(bookingId: string, newStatus: BookingStatus): Promise<boolean> {
   try {
     const { error } = await createClient().rpc('photographer_advance_booking', { target_id: bookingId, new_status: newStatus, note: null });
+    if (error) reportError(error, { area: 'booking', operation: 'update-status' });
     return !error;
   } catch (err) {
-    devWarn('Error updating status in Supabase:', err);
+    reportError(err, { area: 'booking', operation: 'update-status' });
   }
   if (isDevelopment) {
     updateLocalStatus(bookingId, newStatus);
@@ -78,8 +82,14 @@ export async function updateBookingStatus(bookingId: string, newStatus: BookingS
 }
 
 export async function updatePhotographerNote(bookingId: string, note: string) {
-  const { data, error } = await createClient().rpc('update_photographer_note', { p_booking_id: bookingId, p_note: note });
-  return !error && Boolean(data);
+  try {
+    const { data, error } = await createClient().rpc('update_photographer_note', { p_booking_id: bookingId, p_note: note });
+    if (error) reportError(error, { area: 'booking', operation: 'update-photographer-note' });
+    return !error && Boolean(data);
+  } catch (error) {
+    reportError(error, { area: 'booking', operation: 'update-photographer-note' });
+    return false;
+  }
 }
 
 function updateLocalStatus(id: string, status: BookingStatus) {
