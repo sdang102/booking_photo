@@ -1235,9 +1235,9 @@ body.nav-open { overflow: hidden; }
 .fin-archive__count svg { grid-area: 1 / 2 / 3; width: 1rem; }
 .fin-archive__body { padding: 2rem 0 7rem; background: #0d0e12; }
 .fin-archive__filters { display: flex; gap: .3rem; overflow-x: auto; margin-bottom: 3rem; border-bottom: 1px solid rgb(142 143 153 / .17); scrollbar-width: none; }
-.fin-archive__filters button { display: flex; flex: 0 0 auto; gap: .5rem; border-bottom: 2px solid transparent; padding: .9rem 1rem; color: #8e8f99; font-size: .58rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
-.fin-archive__filters button span { color: #5f6068; }
-.fin-archive__filters button.is-active { border-color: #c5a059; background: rgb(197 160 89 / .08); color: #c5a059; }
+.fin-archive__filters a { display: flex; flex: 0 0 auto; gap: .5rem; border-bottom: 2px solid transparent; padding: .9rem 1rem; color: #8e8f99; font-size: .58rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.fin-archive__filters a span { color: #5f6068; }
+.fin-archive__filters a.is-active { border-color: #c5a059; background: rgb(197 160 89 / .08); color: #c5a059; }
 .fin-archive__grid { display: grid; grid-template-columns: repeat(3, 1fr); align-items: start; gap: 1.2rem; }
 .fin-project { overflow: hidden; background: #1a1b22; color: #f1eee9; }
 .fin-project__media { position: relative; height: 410px; overflow: hidden; }

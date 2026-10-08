@@ -52,7 +52,11 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
   },[id]);
 
   useEffect(()=>{void load()},[load]);
-  useEffect(()=>{if(images.length)void refreshPublicContent()},[images]);
+
+  const publish=async(successMessage:string)=>{
+    try{await refreshPublicContent();setMsg(successMessage)}
+    catch{setMsg(`${successMessage} Tuy nhiên nội dung công khai chưa được làm mới; vui lòng thử lưu lại.`)}
+  };
 
   const choose=async(files?:FileList|null)=>{
     const selected=Array.from(files??[]);if(!selected.length)return;
@@ -87,19 +91,26 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
         }
       });
       setPending(failed);await load();
-      setMsg(failed.length?`Đã thêm ${added} ảnh; ${failed.length} ảnh chưa lưu được: ${errors[0]??'Vui lòng thử lại.'}`:`Đã thêm ${added} ảnh vào album.`);
+      const successMessage=failed.length?`Đã thêm ${added} ảnh; ${failed.length} ảnh chưa lưu được: ${errors[0]??'Vui lòng thử lại.'}`:`Đã thêm ${added} ảnh vào album.`;
+      if(added>0)await publish(successMessage);else setMsg(successMessage);
     }finally{setBusy(false)}
   };
 
   const remove=async(row:ImageRow)=>{
     if(!confirm(`Xóa ảnh “${row.alt_text||'không có tiêu đề'}” khỏi album?`))return;
     setDeletingId(row.id);setMsg('');const client=createClient();
-    try{await removeStorageImages('portfolio',[row.storage_path,row.thumb_path]);const{error}=await client.from('portfolio_images').delete().eq('id',row.id);if(error)throw error;setImages(current=>current.filter(item=>item.id!==row.id));setMsg('Đã xóa ảnh khỏi album.')}catch(error){setMsg(errorMessage(error))}finally{setDeletingId('')}
+    try{
+      const{error}=await client.from('portfolio_images').delete().eq('id',row.id);if(error)throw error;
+      setImages(current=>current.filter(item=>item.id!==row.id));
+      let successMessage='Đã xóa ảnh khỏi album.';
+      try{await removeStorageImages('portfolio',[row.storage_path,row.thumb_path])}catch(cleanupError){console.error('[album-image-cleanup] Database row was deleted but Storage cleanup failed.',cleanupError);successMessage='Đã xóa ảnh khỏi album, nhưng file Storage cũ chưa dọn được. Lỗi đã được ghi nhận.'}
+      await publish(successMessage);
+    }catch(error){setMsg(errorMessage(error))}finally{setDeletingId('')}
   };
 
   const update=async(row:ImageRow)=>{
     setMsg('');const{error}=await createClient().from('portfolio_images').update({alt_text:row.alt_text,caption:row.caption,display_order:row.display_order}).eq('id',row.id);
-    if(error)setMsg(error.message);else{await load();setMsg('Đã lưu thông tin ảnh.')}
+    if(error)setMsg(error.message);else{await load();await publish('Đã lưu thông tin ảnh.')}
   };
 
   const replace=async(row:ImageRow,file?:File)=>{
@@ -108,7 +119,7 @@ export default function AlbumImagesPage({params}:{params:Promise<{id:string}>}){
       const prepared=await prepareImage(file,{thumbnailDimension:640});const client=createClient();
       const uploaded=await uploadPreparedImage(prepared,file.name,{bucket:'portfolio',folder:`albums/${id}`});
       const{error}=await client.from('portfolio_images').update({image_url:uploaded.url,storage_path:uploaded.path,thumb_url:uploaded.thumbnailUrl,thumb_path:uploaded.thumbnailPath,width:uploaded.width,height:uploaded.height}).eq('id',row.id);
-      if(error){await removeStorageImages('portfolio',[uploaded.path,uploaded.thumbnailPath]);setMsg(/thumb_url|thumb_path|column/i.test(error.message)?'Hãy chạy migration Phase 2 trước khi thay ảnh album.':error.message)}else{await removeStorageImages('portfolio',[row.storage_path,row.thumb_path]);setImages(current=>current.map(item=>item.id===row.id?{...item,image_url:uploaded.url,storage_path:uploaded.path,thumb_url:uploaded.thumbnailUrl??null,thumb_path:uploaded.thumbnailPath??null,width:uploaded.width,height:uploaded.height}:item));setMsg('Đã thay ảnh mới.')}
+      if(error){await removeStorageImages('portfolio',[uploaded.path,uploaded.thumbnailPath]);setMsg(/thumb_url|thumb_path|column/i.test(error.message)?'Hãy chạy migration Phase 2 trước khi thay ảnh album.':error.message)}else{let successMessage='Đã thay ảnh mới.';try{await removeStorageImages('portfolio',[row.storage_path,row.thumb_path])}catch(cleanupError){console.error('[album-image-replace] Database points to the new image but old Storage cleanup failed.',cleanupError);successMessage='Đã thay ảnh mới, nhưng file cũ chưa dọn được. Lỗi đã được ghi nhận.'}setImages(current=>current.map(item=>item.id===row.id?{...item,image_url:uploaded.url,storage_path:uploaded.path,thumb_url:uploaded.thumbnailUrl??null,thumb_path:uploaded.thumbnailPath??null,width:uploaded.width,height:uploaded.height}:item));await publish(successMessage)}
     }catch(error){setMsg(error instanceof Error?error.message:'Không thể thay ảnh.')}finally{setReplacingId('')}
   };
 

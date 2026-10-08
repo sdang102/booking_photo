@@ -7,7 +7,7 @@ import type { BookingStatus } from '@/types';
 import BookingStatusBadge, { BOOKING_STATUS_LABEL } from '@/components/photographer/BookingStatusBadge';
 import { usePhotographerBookings } from '@/lib/context/PhotographerBookingsContext';
 
-const FILTERS=['pending','confirmed','completed'] as const satisfies readonly BookingStatus[];
+const FILTERS=['pending','confirmed','checked_in','shooting','completed','cancelled'] as const satisfies readonly BookingStatus[];
 type BookingFilter=(typeof FILTERS)[number];
 
 export default function PhotographerBookings(){

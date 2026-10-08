@@ -3,7 +3,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, AtSign, Camera, Check, Mail, MessageCircle, MoveUpRight, Music2, Phone, Sparkles } from 'lucide-react';
-import { PORTFOLIO_ALBUMS } from '@/lib/data/mockData';
 import type { PortfolioAlbum, Service } from '@/types';
 import type { PublicSiteSettings } from '@/lib/services/siteSettingsService';
 import { formatVND } from './ServiceCard';
@@ -56,7 +55,7 @@ export function FinCraft({items=defaultCraft}:{items?:Array<{title:string;copy:s
   </section>;
 }
 
-export function FinSelectedWorks({ albums = PORTFOLIO_ALBUMS }: { albums?: PortfolioAlbum[] }) {
+export function FinSelectedWorks({ albums = [] }: { albums?: PortfolioAlbum[] }) {
   const works = albums.slice(0, 4);
   return <section id="collection" className="fin-section fin-works"><div className="fin-shell">
     <header className="fin-heading fin-heading--split"><div><p className="fin-kicker"><span /> Selected works</p><h2>Tác phẩm tiêu biểu<br />được tuyển chọn.</h2></div><Link className="fin-text-link" href="/portfolio">Xem toàn bộ bộ sưu tập <ArrowRight /></Link></header>

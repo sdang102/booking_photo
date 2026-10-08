@@ -37,15 +37,6 @@ export interface PortfolioAlbum {
   images: PortfolioImage[];
 }
 
-export interface ShootingLocation {
-  id: string;
-  name: string;
-  area: string;
-  description: string;
-  travel_fee: number;
-  image_url: string;
-}
-
 export type AvailabilityStatus = 'available' | 'limited' | 'booked' | 'off';
 
 export interface ExperienceReview {
@@ -57,7 +48,6 @@ export interface ExperienceReview {
   photos?: string[];
   /** Full-resolution URLs used only when the review detail is opened. */
   photo_urls?: string[];
-  likes?: number;
   rating: number;
   comment: string;
   service_title: string;
@@ -105,17 +95,6 @@ export interface PublicReviewSummary {
   averageRating: number;
   totalReviews: number;
   distribution: Record<number, number>;
-}
-
-export interface Photographer {
-  id: string;
-  full_name: string;
-  bio: string;
-  avatar_url: string;
-  specialties: string[];
-  rating: number;
-  review_count: number;
-  experience_years: number;
 }
 
 export interface UserProfile {
@@ -175,13 +154,6 @@ export interface BookingFormData {
   addon_services: string[];
   total_price: number;
   user_id?: string;
-}
-
-export interface AddonOption {
-  id: string;
-  title: string;
-  price: number;
-  description: string;
 }
 
 export interface ServiceAddon {

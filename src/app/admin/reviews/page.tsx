@@ -63,10 +63,14 @@ export default function AdminReviewsPage() {
     if (!confirm(`Xóa vĩnh viễn đánh giá của “${review.customer_name}”?\n\nThao tác này không thể hoàn tác.`)) return;
     setMessage(''); setDeletingId(review.id);
     try {
-      await deleteReview(review.id);
+      const result = await deleteReview(review.id);
       setReviews((items) => items.filter((item) => item.id !== review.id));
-      setMessage('Đã xóa đánh giá.');
-      await refreshPublicContent();
+      try {
+        await refreshPublicContent();
+        setMessage(result.cleanupWarning || 'Đã xóa đánh giá.');
+      } catch (refreshError) {
+        setMessage(`${result.cleanupWarning || 'Đã xóa đánh giá.'} ${refreshError instanceof Error ? refreshError.message : 'Nội dung công khai chưa được làm mới.'}`);
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Không thể xóa đánh giá.');
     } finally { setDeletingId(''); }
@@ -85,6 +89,7 @@ export default function AdminReviewsPage() {
           <div>
             <div className="flex flex-wrap items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-slate-100 text-sm font-bold text-amber-700"><img src={review.avatar_url || DEFAULT_AVATAR_URL} alt={`Ảnh đại diện của ${review.customer_name}`} width="40" height="40" loading="lazy" decoding="async" className="h-full w-full object-cover" /></span><h2 className="font-bold">{review.customer_name}</h2><span className="flex text-amber-400">{Array.from({ length: review.rating }).map((_, index) => <Star key={index} className="h-3.5 w-3.5 fill-current" />)}</span><time className="text-xs text-slate-400">{new Date(review.created_at).toLocaleDateString('vi-VN')}</time></div>
             <p className="mt-3 text-sm leading-relaxed text-slate-600">{review.comment}</p>
+            {review.photos && review.photos.length > 0 && <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5">{review.photos.map((photo, index) => <a key={`${review.id}-${photo}`} href={review.photo_urls?.[index] || photo} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden rounded-xl border border-sky-100 bg-slate-50"><img src={photo} alt={`Ảnh đánh giá ${index + 1} của ${review.customer_name}`} loading="lazy" decoding="async" className="h-full w-full object-cover" /></a>)}</div>}
             <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-slate-500"><span>Service: {review.service_title}</span><span>Booking: {review.booking_id}</span></div>
           </div>
           <div className="flex flex-col gap-2 sm:min-w-56">

@@ -256,13 +256,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await removeStorageImages('avatars', [uploaded.path]);
         return { success: false, message: error.message || 'Không thể lưu ảnh đại diện.' };
       }
+      let cleanupWarning = '';
       if (previousAvatarPath && previousAvatarPath !== uploaded.path) {
-        try { await removeStorageImages('avatars', [previousAvatarPath]); } catch { /* A stale object must not undo a successful profile update. */ }
+        try { await removeStorageImages('avatars', [previousAvatarPath]); }
+        catch (cleanupError) {
+          console.error('[avatar-cleanup] Profile was updated but the previous Storage object could not be removed.', cleanupError);
+          cleanupWarning = ' Ảnh cũ chưa dọn được khỏi Storage; lỗi đã được ghi nhận.';
+        }
       }
       const nextUser = { ...user, avatar_url: uploaded.url, avatar_path: uploaded.path };
       setUser(nextUser);
       profileCache = { userId: user.id, value: nextUser, expiresAt: Date.now() + PROFILE_CACHE_MS };
-      return { success: true, message: 'Đã cập nhật ảnh đại diện.' };
+      return { success: true, message: `Đã cập nhật ảnh đại diện.${cleanupWarning}` };
     } catch (error) {
       return { success: false, message: error instanceof Error ? error.message : 'Không thể tải ảnh đại diện.' };
     }

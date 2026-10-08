@@ -8,6 +8,7 @@ import { ImagePlus, Images, Plus, Trash2, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { uploadImageFile } from '@/lib/services/imageUploadService';
 import { refreshPublicContent } from '@/lib/client/revalidatePublicContent';
+import { deletePortfolioAlbum } from '@/lib/services/contentDeletionService';
 
 type Row=Record<string,unknown>&{id?:string};
 type Field={key:string;label:string;kind?:'number'|'textarea'|'checkbox'|'json'|'image'|'category';required?:boolean};
@@ -47,10 +48,29 @@ export default function AdminCrudPanel({section}:{section:string}){
     }
     const query=edit.id?createClient().from(config.table).update(payload).eq('id',edit.id):createClient().from(config.table).insert(payload);
     const{error}=await query;
-    if(error)setMsg(error.message);else{setEdit(null);await load(0);await refreshPublicContent()}
+    if(error)setMsg(friendlyDatabaseError(error));else{setEdit(null);await load(0);try{await refreshPublicContent();setMsg('Đã lưu nội dung.')}catch(refreshError){setMsg(refreshError instanceof Error?refreshError.message:'Đã lưu nhưng chưa thể làm mới nội dung công khai.')}}
   };
-  const archive=async(row:Row)=>{if(!config.archive||!row.id)return;const hidden=row[config.archive]===false;const action=hidden?'hiện lại':'ẩn/ngừng sử dụng';if(!confirm(`Bạn chắc chắn muốn ${action} “${rowLabel(row)}”?`))return;setMsg('');const{error}=await createClient().from(config.table).update({[config.archive]:hidden}).eq('id',row.id);if(error)setMsg(friendlyDatabaseError(error));else{setMsg(hidden?'Đã hiện lại mục này.':'Đã ẩn mục này.');await load(0);await refreshPublicContent()}};
-  const remove=async(row:Row)=>{if(!row.id||config.singleton)return;const label=rowLabel(row);if(!confirm(`Xóa vĩnh viễn “${label}”?\n\nThao tác này không thể hoàn tác. Nếu mục đang được booking hoặc nội dung khác sử dụng, hệ thống sẽ từ chối xóa.`))return;setMsg('');setDeletingId(row.id);const{error}=await createClient().from(config.table).delete().eq('id',row.id);setDeletingId('');if(error)setMsg(friendlyDatabaseError(error));else{setRows(current=>current.filter(item=>item.id!==row.id));setMsg(`Đã xóa “${label}”.`);await refreshPublicContent()}};
+  const archive=async(row:Row)=>{if(!config.archive||!row.id)return;const hidden=row[config.archive]===false;const action=hidden?'hiện lại':'ẩn/ngừng sử dụng';if(!confirm(`Bạn chắc chắn muốn ${action} “${rowLabel(row)}”?`))return;setMsg('');const{error}=await createClient().from(config.table).update({[config.archive]:hidden}).eq('id',row.id);if(error)setMsg(friendlyDatabaseError(error));else{await load(0);try{await refreshPublicContent();setMsg(hidden?'Đã hiện lại mục này.':'Đã ẩn mục này.')}catch(refreshError){setMsg(refreshError instanceof Error?refreshError.message:'Đã lưu nhưng chưa thể làm mới nội dung công khai.')}}};
+  const remove=async(row:Row)=>{
+    if(!row.id||config.singleton)return;
+    const label=rowLabel(row);
+    if(!confirm(`Xóa vĩnh viễn “${label}”?\n\nThao tác này không thể hoàn tác. Nếu mục đang được booking hoặc nội dung khác sử dụng, hệ thống sẽ từ chối xóa.`))return;
+    setMsg('');setDeletingId(row.id);
+    try{
+      const client=createClient();
+      let cleanupWarning='';
+      if(config.table==='portfolio_albums'){
+        cleanupWarning=(await deletePortfolioAlbum(row.id)).cleanupWarning??'';
+      }else{
+        const{error}=await client.from(config.table).delete().eq('id',row.id);
+        if(error)throw error;
+      }
+      setRows(current=>current.filter(item=>item.id!==row.id));
+      try{await refreshPublicContent();setMsg(cleanupWarning||`Đã xóa vĩnh viễn “${label}”.`)}
+      catch(refreshError){setMsg(`${cleanupWarning||`Đã xóa vĩnh viễn “${label}”.`} ${refreshError instanceof Error?refreshError.message:'Nội dung công khai chưa được làm mới.'}`)}
+    }catch(error){setMsg(friendlyDatabaseError(error))}
+    finally{setDeletingId('')}
+  };
   const openNew=()=>setEdit({id:'',...config.defaults});
 
   return <div>
@@ -63,10 +83,11 @@ export default function AdminCrudPanel({section}:{section:string}){
 }
 
 function rowLabel(row:Row){return String(row.name??row.title??row.question??row.section_key??row.website_name??'Mục này')}
-function friendlyDatabaseError(error:{code?:string;message:string}){
-  if(error.code==='23503')return 'Không thể xóa vì mục này đang được booking hoặc dữ liệu khác sử dụng. Hãy dùng chức năng Ẩn.';
-  if(error.code==='42501')return 'Tài khoản hiện tại không có quyền xóa mục này.';
-  return `Không thể thực hiện thao tác: ${error.message}`;
+function friendlyDatabaseError(error:unknown){
+  const value=error&&typeof error==='object'?error as {code?:string;message?:string}:{};
+  if(value.code==='23503')return 'Không thể xóa vì mục này đang được booking hoặc dữ liệu khác sử dụng. Hãy dùng chức năng Ẩn.';
+  if(value.code==='42501')return 'Tài khoản hiện tại không có quyền xóa mục này.';
+  return `Không thể thực hiện thao tác: ${value.message||'Vui lòng thử lại.'}`;
 }
 
 function FieldEditor({section,field,value,categories,onChange,onPathChange,onError}:{section:string;field:Field;value:unknown;categories:Array<{id:string;name:string}>;onChange:(value:unknown)=>void;onPathChange:(path:string)=>void;onError:(message:string)=>void}){

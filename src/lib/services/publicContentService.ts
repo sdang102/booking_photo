@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import { unstable_cache } from 'next/cache';
-import { MOCK_SERVICES, MOCK_REVIEWS } from '@/lib/data/mockData';
 import type {
   ExperienceReview,
   FaqItem,
@@ -147,16 +146,18 @@ export function getPublicAlbumCovers(limit?: number) {
   return getCachedAlbums(limit);
 }
 
-export async function getPublicAlbumCoverPage(offset = 0, limit = 24) {
+export async function getPublicAlbumCoverPage(offset = 0, limit = 24, category?: string) {
   const safeOffset = Math.max(0, Math.floor(offset) || 0);
   const safeLimit = Math.min(24, Math.max(1, Math.floor(limit) || 24));
   const client = publicClient();
-  const { data, error, count } = await client
+  const select = category ? ALBUM_COVER_SELECT.replace('categories(slug)', 'categories!inner(slug)') : ALBUM_COVER_SELECT;
+  let query = client
     .from('portfolio_albums')
-    .select(ALBUM_COVER_SELECT, { count: 'exact' })
+    .select(select, { count: 'exact' })
     .eq('is_public', true)
-    .order('display_order')
-    .range(safeOffset, safeOffset + safeLimit - 1);
+    .order('display_order');
+  if (category) query = query.eq('categories.slug', category);
+  const { data, error, count } = await query.range(safeOffset, safeOffset + safeLimit - 1);
   const albums = error || !data ? [] : (data as unknown as AlbumRow[]).map(mapAlbum);
   return { albums, nextOffset: albums.length === safeLimit ? safeOffset + albums.length : null, total: count ?? safeOffset + albums.length };
 }
@@ -266,7 +267,7 @@ async function queryServices(): Promise<Service[]> {
   } catch {
     // Fall through to the existing development fixtures when Supabase is unavailable.
   }
-  return process.env.NODE_ENV !== 'production' ? MOCK_SERVICES : [];
+  return [];
 }
 
 export const getPublicServices = unstable_cache(queryServices, ['public-services'], { revalidate: 300, tags: [CONTENT_TAG] });
@@ -379,11 +380,7 @@ async function queryReviewPage(cursor?: PublicReviewCursor | null, limit = PUBLI
   } catch {
     // Fall through to local fixtures in development.
   }
-  const fallback = process.env.NODE_ENV !== 'production' ? MOCK_REVIEWS.filter((review) => review.is_public) : [];
-  const safeOffset = cursor ? fallback.findIndex((review) => review.id === cursor.id) + 1 : 0;
-  const reviews = safeOffset > 0 ? fallback.slice(safeOffset, safeOffset + limit) : fallback.slice(0, limit);
-  const last = reviews[reviews.length - 1];
-  return { reviews, nextCursor: reviews.length === limit && last ? { created_at: last.created_at, id: last.id } : null };
+  return { reviews: [], nextCursor: null };
 }
 
 export function getPublicReviewPage(cursor?: PublicReviewCursor | null, limit = PUBLIC_REVIEW_PAGE_SIZE) {
@@ -393,10 +390,6 @@ export function getPublicReviewPage(cursor?: PublicReviewCursor | null, limit = 
     ['public-reviews-page', cursorKey, String(limit)],
     { revalidate: 300, tags: [CONTENT_TAG] },
   )();
-}
-
-export async function getPublicReviews() {
-  return (await getPublicReviewPage()).reviews;
 }
 
 export async function getPublicReviewSummary(): Promise<PublicReviewSummary> {
@@ -421,8 +414,7 @@ export async function getPublicReviewSummary(): Promise<PublicReviewSummary> {
       return summarizeRatings(ratings);
     }
   } catch { /* Fall through to local fixtures when the public table is unavailable. */ }
-  const reviews = process.env.NODE_ENV !== 'production' ? MOCK_REVIEWS.filter((review) => review.is_public) : [];
-  return summarizeRatings(reviews.map((review) => review.rating));
+  return summarizeRatings([]);
 }
 
 function summarizeRatings(ratings: number[]): PublicReviewSummary {

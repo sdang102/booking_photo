@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 import type { BookingStatus } from '@/types';
-import { BOOKING_SELECT, TABLE_NAME } from './bookingShared';
+import { TABLE_NAME } from './bookingShared';
 import type { BookingQueryOptions } from './bookingReadService';
 
 export interface BookingRevenueSummary {
@@ -47,25 +47,19 @@ export async function getBookingFinancialRecords({ limit = 50, offset = 0, statu
 }
 
 export async function getBookingRevenueSummary(filters: BookingRevenueFilters = {}): Promise<BookingRevenueSummary> {
-  let query = createClient()
-    .from(TABLE_NAME)
-    .select('total_price,status,shoot_date');
-  if (filters.status && filters.status !== 'all') query = query.eq('status', filters.status);
-  if (filters.fromDate) query = query.gte('shoot_date', filters.fromDate);
-  if (filters.toDate) query = query.lte('shoot_date', filters.toDate);
-  const { data, error } = await query;
-  if (error || !data) throw new Error('Không thể tải tổng hợp doanh thu.');
-
-  const rows = data as Array<{ total_price: number | string | null; status: BookingStatus }>;
-  const amount = (status?: BookingStatus) => rows
-    .filter((row) => row.status !== 'cancelled' && (!status || row.status === status))
-    .reduce((sum, row) => sum + Number(row.total_price ?? 0), 0);
+  const { data, error } = await createClient().rpc('get_admin_booking_revenue_summary', {
+    target_status: filters.status && filters.status !== 'all' ? filters.status : null,
+    target_from: filters.fromDate ?? null,
+    target_to: filters.toDate ?? null,
+  });
+  const row = Array.isArray(data) ? data[0] : data;
+  if (error || !row) throw new Error('Không thể tải tổng hợp doanh thu.');
   return {
-    total: amount(),
-    realized: amount('completed'),
-    expected: amount('confirmed'),
-    atVenue: rows.filter((row) => !['cancelled', 'completed'].includes(row.status)).reduce((sum, row) => sum + Number(row.total_price ?? 0), 0),
-    activeCount: rows.filter((row) => !['cancelled', 'completed'].includes(row.status)).length,
+    total: Number(row.total_active ?? 0),
+    realized: Number(row.realized ?? 0),
+    expected: Number(row.expected ?? 0),
+    atVenue: Number(row.at_venue ?? 0),
+    activeCount: Number(row.active_count ?? 0),
   };
 }
 
@@ -78,5 +72,3 @@ export async function getActiveUnassignedBookingCount(): Promise<number> {
   if (error) throw new Error('Không thể kiểm tra booking chưa được gán thợ chụp.');
   return count ?? 0;
 }
-
-export { BOOKING_SELECT };

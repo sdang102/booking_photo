@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/client';
-import { MOCK_REVIEWS } from '@/lib/data/mockData';
 import type { ExperienceReview, ReviewSummary } from '@/types';
 import { prepareImage, removeStorageImages, uploadPreparedImage, type UploadedImage } from '@/lib/services/imageUploadService';
 
@@ -7,12 +6,12 @@ const STORAGE_KEY = 'photo_reviews_v1';
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
 function localReviews(): ExperienceReview[] {
-  if (typeof window === 'undefined') return MOCK_REVIEWS;
+  if (typeof window === 'undefined') return [];
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) { localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_REVIEWS)); return MOCK_REVIEWS; }
+    if (!stored) { localStorage.setItem(STORAGE_KEY, '[]'); return []; }
     return JSON.parse(stored) as ExperienceReview[];
-  } catch { return MOCK_REVIEWS; }
+  } catch { return []; }
 }
 function save(reviews: ExperienceReview[]) { if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(reviews)); }
 function firstRelation<T>(value: T | T[] | null | undefined): T | undefined { return Array.isArray(value) ? value[0] : value ?? undefined; }
@@ -51,19 +50,6 @@ async function reviewAuthors(userIds: string[]) {
   } catch { return new Map<string, string>(); }
 }
 
-async function reviewLikeCounts(reviewIds: string[]) {
-  if (!reviewIds.length) return new Map<string, number>();
-  try {
-    const { data, error } = await createClient().rpc('get_review_like_counts', { target_review_ids: reviewIds });
-    if (error) return new Map<string, number>();
-    const result = new Map<string, number>();
-    (data ?? []).forEach((row: { review_id: string; like_count: number | string }) => {
-      result.set(row.review_id, Number(row.like_count ?? 0));
-    });
-    return result;
-  } catch { return new Map<string, number>(); }
-}
-
 export async function getReviews(options: { publicOnly?: boolean; featuredFirst?: boolean; limit?: number; offset?: number; bookingIds?: string[] } = {}): Promise<ExperienceReview[]> {
   let failure: unknown;
   try {
@@ -78,10 +64,9 @@ export async function getReviews(options: { publicOnly?: boolean; featuredFirst?
     const { data, error } = await query;
     if (!error && data) {
       const reviewIds = data.map((row) => row.id);
-      const [media, authors, likes] = await Promise.all([
+      const [media, authors] = await Promise.all([
         reviewMedia(reviewIds),
         reviewAuthors(data.map((row) => row.user_id).filter((id): id is string => Boolean(id))),
-        reviewLikeCounts(reviewIds),
       ]);
       return data.map((row) => {
       const booking = firstRelation(row.bookings);
@@ -90,7 +75,7 @@ export async function getReviews(options: { publicOnly?: boolean; featuredFirst?
         customer_name: booking?.customer_name ?? 'Khách hàng', rating: row.rating, comment: row.comment,
         service_title: booking?.service_name_snapshot ?? '', portfolio_slug: album?.slug,
         avatar_url: row.user_id ? authors.get(row.user_id) : undefined,
-        photos: media.get(row.id)?.thumbnails ?? [], photo_urls: media.get(row.id)?.full ?? [], likes: likes.get(row.id) ?? 0,
+        photos: media.get(row.id)?.thumbnails ?? [], photo_urls: media.get(row.id)?.full ?? [],
         is_public: row.is_public, is_featured: row.is_featured, created_at: row.created_at, updated_at: row.updated_at };
       }) as ExperienceReview[];
     }
@@ -120,17 +105,6 @@ export function reviewSummary(reviews: ExperienceReview[]): ReviewSummary {
   return { averageRating: valid.length ? Math.round((valid.reduce((sum, review) => sum + review.rating, 0) / valid.length) * 10) / 10 : 0, totalReviews: valid.length };
 }
 
-export async function canReviewBooking(bookingId: string): Promise<{ allowed: boolean; reason?: string }> {
-  const supabase = createClient();
-  const [{ data: booking }, { data: review }] = await Promise.all([
-    supabase.from('bookings').select('id,status').eq('id', bookingId).maybeSingle(),
-    supabase.from('reviews').select('id').eq('booking_id', bookingId).maybeSingle(),
-  ]);
-  if (!booking || booking.status !== 'completed') return { allowed: false, reason: 'Chỉ booking đã hoàn thành mới có thể đánh giá.' };
-  if (review) return { allowed: false, reason: 'Booking này đã được đánh giá.' };
-  return { allowed: true };
-}
-
 export async function createReview(input: { bookingId: string; userId?: string; customerName: string; serviceTitle: string; rating: number; comment: string; photos?: File[] }): Promise<{ success: boolean; review?: ExperienceReview; message?: string }> {
   const comment = input.comment.trim();
   if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) return { success: false, message: 'Vui lòng chọn từ 1 đến 5 sao.' };
@@ -158,7 +132,7 @@ export async function createReview(input: { bookingId: string; userId?: string; 
       const row = Array.isArray(data) ? data[0] : data;
       const reviewId = typeof row === 'object' && row && 'id' in row ? String((row as { id: string }).id) : undefined;
       if (typeof window !== 'undefined') window.dispatchEvent(new Event('review-created'));
-      return { success: true, review: reviewId ? { id: reviewId, booking_id: input.bookingId, user_id: input.userId, customer_name: input.customerName, rating: input.rating, comment, service_title: input.serviceTitle, photos: uploaded.map((image) => image.thumbnailUrl ?? image.url), photo_urls: uploaded.map((image) => image.url), likes: 0, is_public: true, is_featured: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } : undefined };
+      return { success: true, review: reviewId ? { id: reviewId, booking_id: input.bookingId, user_id: input.userId, customer_name: input.customerName, rating: input.rating, comment, service_title: input.serviceTitle, photos: uploaded.map((image) => image.thumbnailUrl ?? image.url), photo_urls: uploaded.map((image) => image.url), is_public: true, is_featured: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } : undefined };
     }
     await cleanupUploadedReviewPhotos(uploaded, 'Database không trả về đánh giá mới');
     throw new Error('Database không trả về đánh giá mới');
@@ -166,30 +140,6 @@ export async function createReview(input: { bookingId: string; userId?: string; 
     const message = error instanceof Error ? error.message : 'Không thể lưu đánh giá vào database.';
     if (/not reviewable|completed|booking/i.test(message)) return { success: false, message: 'Chỉ booking đã hoàn thành của bạn mới có thể đánh giá.' };
     return { success: false, message };
-  }
-}
-
-export async function getUserReviewLikes(reviewIds: string[]): Promise<string[]> {
-  if (!reviewIds.length) return [];
-  try {
-    const { data: { user } } = await createClient().auth.getUser();
-    if (!user) return [];
-    const { data, error } = await createClient().rpc('get_my_review_likes', { target_review_ids: reviewIds });
-    if (error) return [];
-    return (data ?? []).map((id: string) => String(id));
-  } catch { return []; }
-}
-
-export async function toggleReviewLike(reviewId: string): Promise<{ success: boolean; liked: boolean; likeCount: number; message?: string }> {
-  try {
-    const { data: { user } } = await createClient().auth.getUser();
-    if (!user) return { success: false, liked: false, likeCount: 0, message: 'Vui lòng đăng nhập để thích đánh giá.' };
-    const { data, error } = await createClient().rpc('toggle_review_like', { target_review: reviewId });
-    const row = Array.isArray(data) ? data[0] : data;
-    if (error || !row) return { success: false, liked: false, likeCount: 0, message: error?.message };
-    return { success: true, liked: Boolean(row.liked), likeCount: Number(row.like_count ?? 0) };
-  } catch (error) {
-    return { success: false, liked: false, likeCount: 0, message: error instanceof Error ? error.message : undefined };
   }
 }
 
@@ -248,12 +198,27 @@ export async function updateReviewModeration(id: string, patch: Partial<Pick<Exp
   else if (error) throw new Error(error.message);
 }
 
-export async function deleteReview(id: string): Promise<void> {
-  const { error } = await createClient().from('reviews').delete().eq('id', id);
-  if (!error) return;
+export async function deleteReview(id: string): Promise<{ cleanupWarning?: string }> {
+  const supabase = createClient();
+  const { data: images, error: manifestError } = await supabase
+    .from('review_images')
+    .select('storage_path,thumb_path')
+    .eq('review_id', id);
+  if (manifestError) throw new Error('Không thể đọc danh sách file của đánh giá trước khi xóa.');
+
+  const { error } = await supabase.from('reviews').delete().eq('id', id);
+  if (!error) {
+    try {
+      await removeStorageImages('review-media', (images ?? []).flatMap((image) => [image.storage_path, image.thumb_path]));
+      return {};
+    } catch (cleanupError) {
+      console.error('[review-cleanup] Database row was deleted but Storage cleanup failed.', cleanupError);
+      return { cleanupWarning: 'Đã xóa đánh giá, nhưng một số file Storage chưa dọn được. Lỗi đã được ghi nhận.' };
+    }
+  }
   if (isDevelopment) {
     save(localReviews().filter((review) => review.id !== id));
-    return;
+    return {};
   }
   throw new Error(error.message);
 }

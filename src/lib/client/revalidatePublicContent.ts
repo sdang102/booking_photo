@@ -1,7 +1,4 @@
 export async function refreshPublicContent() {
-  try {
-    await fetch('/api/revalidate-public', { method: 'POST' });
-  } catch {
-    // The mutation already completed; a later TTL refresh will update public pages.
-  }
+  const response = await fetch('/api/revalidate-public', { method: 'POST' });
+  if (!response.ok) throw new Error('Dữ liệu đã được lưu nhưng chưa thể làm mới nội dung công khai.');
 }

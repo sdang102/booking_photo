@@ -4,13 +4,12 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { BookingPhotoRecord, Service } from '@/types';
-import { MOCK_SERVICES } from '@/lib/data/mockData';
 import BookingWizard from './BookingWizard';
 import PublicMotionRoot from './motion/PublicMotionRoot';
 
 const AuthModal = dynamic(() => import('./AuthModal'), { ssr: false });
 
-export default function FinBookingPage({ initialServices = MOCK_SERVICES }: { initialServices?: Service[] }) {
+export default function FinBookingPage({ initialServices = [] }: { initialServices?: Service[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [services] = useState<Service[]>(initialServices);

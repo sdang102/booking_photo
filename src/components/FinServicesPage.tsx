@@ -5,7 +5,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Check, Clock3, Images, Plus } from 'lucide-react';
 import type { FaqItem, Service, ServiceAddon } from '@/types';
-import { MOCK_SERVICES } from '@/lib/data/mockData';
 import { formatVND } from './ServiceCard';
 import PublicMotionRoot from './motion/PublicMotionRoot';
 
@@ -21,7 +20,7 @@ const defaultFaqs: Array<[string, string]> = [
   ['Tôi có thể mang theo trang phục cá nhân không?', 'Có. FIN PHOTO sẽ tư vấn cách phối và ưu tiên những trang phục thể hiện đúng phong cách của bạn.'],
 ];
 
-export default function FinServicesPage({ initialServices = MOCK_SERVICES, initialExtras = defaultExtras, initialFaqs }: { initialServices?: Service[]; initialExtras?: ServiceAddon[]; initialFaqs?: FaqItem[] | null }) {
+export default function FinServicesPage({ initialServices = [], initialExtras = defaultExtras, initialFaqs }: { initialServices?: Service[]; initialExtras?: ServiceAddon[]; initialFaqs?: FaqItem[] | null }) {
   const [services] = useState<Service[]>(initialServices);
   const [extras] = useState<ServiceAddon[]>(initialExtras);
   const [faqs] = useState<Array<[string, string]>>(() => initialFaqs === null || initialFaqs === undefined ? defaultFaqs : initialFaqs.map((faq) => [faq.question, faq.answer]));

@@ -16,7 +16,7 @@ function bookingReadError(error: unknown, fallback: string) {
 
 export async function getReliableAllBookings({ fromDate, toDate, statuses, limit = 200, offset = 0 }: BookingQueryOptions = {}): Promise<BookingPhotoRecord[]> {
   try {
-    let query = createClient().from(TABLE_NAME).select(BOOKING_SELECT).order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+    let query = createClient().from(TABLE_NAME).select(BOOKING_SELECT).order('shoot_date', { ascending: false }).order('start_time', { ascending: false }).range(offset, offset + limit - 1);
     if (fromDate) query = query.gte('shoot_date', fromDate);
     if (toDate) query = query.lte('shoot_date', toDate);
     if (statuses?.length) query = query.in('status', statuses);
