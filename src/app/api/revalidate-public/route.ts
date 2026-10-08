@@ -10,7 +10,9 @@ export async function POST() {
   const { data: isAdmin, error } = await supabase.rpc('has_role', { required_role: 'admin' });
   if (error || !isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  revalidateTag('public-content', 'max');
+  revalidateTag('public-content', { expire: 0 });
   revalidatePath('/', 'layout');
+  revalidatePath('/services');
+  revalidatePath('/booking');
   return NextResponse.json({ ok: true });
 }

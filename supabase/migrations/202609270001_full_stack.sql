@@ -33,7 +33,7 @@ create table if not exists public.site_settings(id uuid primary key default gen_
 create table if not exists public.homepage_sections(id uuid primary key default gen_random_uuid(),section_key text unique not null,title text,subtitle text,content jsonb not null default '{}'::jsonb,image_url text,is_visible boolean not null default true,display_order int not null default 0,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
 create table if not exists public.categories(id uuid primary key default gen_random_uuid(),name text not null,slug text unique not null,description text,is_active boolean not null default true,display_order int not null default 0,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
 
-create table if not exists public.services(id uuid primary key default gen_random_uuid(),category_id uuid references public.categories(id) on delete restrict,name text not null,slug text unique not null,short_description text,description text,price numeric(12,2) not null check(price>=0),deposit_amount numeric(12,2) not null default 0 check(deposit_amount>=0),duration_minutes int not null check(duration_minutes>0),edited_photo_count int,concept_count int,location_count int,cover_image text,features jsonb not null default '[]'::jsonb,terms text,is_featured boolean not null default false,is_active boolean not null default true,display_order int not null default 0,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.services(id uuid primary key default gen_random_uuid(),category_id uuid references public.categories(id) on delete restrict,name text not null,slug text unique not null,short_description text,description text,price numeric(12,2) not null check(price>=0),deposit_amount numeric(12,2) not null default 0 check(deposit_amount>=0),duration_minutes int not null check(duration_minutes>0),edited_photo_count int,concept_count int,location_count int,outfit_count int,cover_image text,features jsonb not null default '[]'::jsonb,terms text,is_featured boolean not null default false,is_active boolean not null default true,display_order int not null default 0,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
 alter table public.services add column if not exists category_id uuid references public.categories(id) on delete restrict;
 alter table public.services add column if not exists name text;
 alter table public.services add column if not exists short_description text;
@@ -41,6 +41,7 @@ alter table public.services add column if not exists deposit_amount numeric(12,2
 alter table public.services add column if not exists edited_photo_count int;
 alter table public.services add column if not exists concept_count int;
 alter table public.services add column if not exists location_count int;
+alter table public.services add column if not exists outfit_count int;
 alter table public.services add column if not exists cover_image text;
 alter table public.services add column if not exists terms text;
 alter table public.services add column if not exists is_featured boolean not null default false;

@@ -1265,7 +1265,7 @@ body.nav-open { overflow: hidden; }
 .fin-services-hero .fin-kicker { justify-content: center; }
 .fin-services-hero p:not(.fin-kicker) { margin-inline: auto; }
 .fin-services-plans { padding: 1rem 0 7rem; }
-.fin-services-plans__grid { display: grid; grid-template-columns: repeat(3, 1fr); align-items: stretch; gap: 1.2rem; }
+.fin-services-plans__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 1.2rem; }
 .fin-services-plans article { display: flex; flex-direction: column; border: 1px solid rgb(142 143 153 / .18); padding: 2rem; background: #1a1b22; }
 .fin-services-plans article.is-featured { border-top: 4px solid #c5a059; background: #242329; }
 .fin-services-card__top { display: flex; align-items: center; justify-content: space-between; color: #8e8f99; font-size: .58rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
@@ -1297,11 +1297,12 @@ body.nav-open { overflow: hidden; }
 .fin-compare .fin-heading { margin-bottom: 2.5rem; }
 .fin-compare__table { min-width: 760px; border-top: 1px solid rgb(142 143 153 / .2); }
 .fin-compare > .fin-shell { overflow-x: auto; }
-.fin-compare__row { display: grid; grid-template-columns: 1.2fr repeat(3, 1fr); border-bottom: 1px solid rgb(142 143 153 / .16); }
+.fin-compare__row { display: grid; border-bottom: 1px solid rgb(142 143 153 / .16); }
 .fin-compare__row > * { padding: 1rem; border-right: 1px solid rgb(142 143 153 / .12); color: #bebdc1; font-size: .65rem; text-align: center; }
 .fin-compare__row > :first-child { color: #f1eee9; font-weight: 700; text-align: left; }
 .fin-compare__head { background: #24252c; }
-.fin-compare__head strong:nth-child(3) { background: rgb(197 160 89 / .16); color: #c5a059; }
+.fin-compare__head strong.is-featured { background: rgb(197 160 89 / .16); color: #c5a059; }
+.fin-compare__row .is-check { color: #c5a059; font-size: 1rem; font-weight: 900; }
 .fin-extras { background: #0d0e12; }
 .fin-extras > .fin-shell > div:last-child { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 .fin-extras article { padding: 1.7rem; background: #1a1b22; }

@@ -12,6 +12,7 @@ import type {
   Service,
   ServiceAddon,
 } from '@/types';
+import { getCatalogFallbackServices, mapServiceRow } from './serviceCatalog';
 import { getReviewPageCursor } from '../reviewPagination';
 
 /**
@@ -244,31 +245,17 @@ async function queryServices(): Promise<Service[]> {
       .from('services')
       .select('id,name,slug,description,short_description,price,duration_minutes,features,cover_image,is_featured,edited_photo_count,concept_count,location_count,categories(slug)')
       .eq('is_active', true)
-      .order('price', { ascending: true });
+      .order('display_order', { ascending: true });
     if (!error && data) {
-      return data.map((row) => {
+      return data.map((row, index) => {
         const category = relation(row.categories as { slug?: string } | Array<{ slug?: string }> | null);
-        return {
-          id: row.id,
-          title: row.name,
-          slug: row.slug,
-          category: (category?.slug ?? 'portrait') as Service['category'],
-          description: row.description ?? row.short_description ?? '',
-          price: Number(row.price),
-          duration_minutes: row.duration_minutes,
-          features: Array.isArray(row.features) ? row.features : [],
-          image_url: safePublicImage(row.cover_image),
-          is_popular: row.is_featured,
-          edited_photos: row.edited_photo_count,
-          concept_count: row.concept_count,
-          location_count: row.location_count ? String(row.location_count) : undefined,
-        } as Service;
-      });
+        return mapServiceRow(row, index, category?.slug ?? 'portrait', safePublicImage(row.cover_image));
+      }).filter((service): service is Service => service !== null);
     }
   } catch {
     // Fall through to the existing development fixtures when Supabase is unavailable.
   }
-  return [];
+  return process.env.NODE_ENV !== 'production' ? getCatalogFallbackServices() : [];
 }
 
 export const getPublicServices = unstable_cache(queryServices, ['public-services'], { revalidate: 300, tags: [CONTENT_TAG] });
