@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "check:env": "node scripts/check-env.mjs",
+    "prebuild": "npm run check:env -- --production",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -18,6 +20,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@next/env": "16.3.6",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
